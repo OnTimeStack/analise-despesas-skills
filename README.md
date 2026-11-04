@@ -2,6 +2,8 @@
 
 Plugin reutilizável para ChatGPT, Codex e agentes compatíveis com Agent Skills. O fluxo separa integridade de extração e conciliação da interpretação estratégica:
 
+Versão atual do bundle de skills e do pacote Python: **1.2.0**.
+
 ```text
 CSV / OFX / ZIP ──► consolidar-faturas ──► consolidado.csv
 PDF / imagem ──► extração assistida ─────┘        │

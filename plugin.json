@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "analise-despesas",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Consolida faturas, enriquece merchants com revisão humana reutilizável e produz análises de despesas reproduzíveis.",
   "author": {
     "name": "OnTimeStack",

@@ -1,6 +1,8 @@
 ---
 name: consolidar-faturas
 description: Extraia, valide, reconcilie e consolide transações de faturas ou extratos em CSV e OFX, incluindo ZIPs. Use PDF e imagem apenas com extração assistida e confirmação quando houver incerteza. Não use para recomendações de corte de gastos.
+metadata:
+  version: "1.2.0"
 ---
 
 # Consolidar faturas e extratos

@@ -1,6 +1,8 @@
 ---
 name: analise-estrategica-despesas
 description: Enriqueça merchants com revisão humana e base de conhecimento, categorize e analise um consolidado financeiro para identificar concentração, recorrências, parcelamentos, tendências e oportunidades de redução. Use após a consolidação; não use para extrair PDFs ou conciliar faturas.
+metadata:
+  version: "1.2.0"
 ---
 
 # Análise estratégica de despesas
