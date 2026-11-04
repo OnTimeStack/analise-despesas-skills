@@ -11,9 +11,96 @@ from .categorization import Categorizer
 from .consolidation import ConsolidationError, ExpectedTotals, InvoiceConsolidator
 from .merchants import (
     MerchantKnowledgeBase,
+    default_knowledge_base_path,
     prepare_legacy_merchant_review,
     prepare_merchant_review,
 )
+
+
+def process_expenses_main(argv: list[str] | None = None) -> int:
+    """Consolidate, reconcile, analyze, and start the human-review workflow."""
+    parser = argparse.ArgumentParser(
+        description=(
+            "Processa faturas de ponta a ponta: consolida, concilia, analisa e abre "
+            "a revisão humana de merchants."
+        )
+    )
+    parser.add_argument("input", type=Path, help="Arquivo, ZIP ou diretório de entrada")
+    parser.add_argument("output", type=Path, help="Diretório único de saída")
+    parser.add_argument(
+        "--expected-totals",
+        type=Path,
+        help="CSV: banco,periodo_referencia,total_esperado",
+    )
+    parser.add_argument(
+        "--knowledge-base",
+        type=Path,
+        help="Base de merchants; padrão: armazenamento local persistente da skill",
+    )
+    parser.add_argument("--categories", type=Path, help="CSV opcional de regras customizadas")
+    parser.add_argument("--port", type=int, default=8765, help="Porta local; padrão 8765")
+    parser.add_argument("--open", action="store_true", help="Abre a aplicação no navegador")
+    parser.add_argument(
+        "--no-serve",
+        action="store_true",
+        help="Gera todos os artefatos sem manter o servidor local (útil para automação)",
+    )
+    args = parser.parse_args(argv)
+    knowledge_base = args.knowledge_base or default_knowledge_base_path()
+    try:
+        expected = ExpectedTotals.from_csv(args.expected_totals) if args.expected_totals else None
+        report = InvoiceConsolidator(
+            args.input,
+            args.output,
+            expected_totals=expected,
+        ).run()
+        if report.requires_confirmation:
+            reconciliation_result: dict[str, object] = {
+                "status": "aguardando_conciliacao",
+                "message": (
+                    "A análise foi interrompida: informe ou confirme o total de cada fatura "
+                    "e execute novamente."
+                ),
+                "consolidation": report.to_dict(),
+            }
+            print(json.dumps(reconciliation_result, ensure_ascii=False, indent=2))
+            return 2
+
+        from .webapp import ExpenseReviewApplication, serve_expense_review_app
+
+        if args.no_serve:
+            application = ExpenseReviewApplication(
+                args.output / "consolidado.csv",
+                args.output,
+                knowledge_base,
+                categories_path=args.categories,
+            )
+            enrichment = application.results.get("merchant_enrichment", {})
+            process_result: dict[str, object] = {
+                "status": "pronto_para_revisao",
+                "consolidation": report.to_dict(),
+                "merchant_enrichment": enrichment,
+                "outputs": [
+                    str(args.output / "consolidado.csv"),
+                    str(args.output / "merchant_review.html"),
+                    str(args.output / "analise_estrategica_despesas.html"),
+                    str(args.output / "analysis_results.json"),
+                ],
+            }
+            print(json.dumps(process_result, ensure_ascii=False, indent=2))
+            return 0
+
+        serve_expense_review_app(
+            args.output / "consolidado.csv",
+            args.output,
+            knowledge_base,
+            categories_path=args.categories,
+            port=args.port,
+            open_browser=args.open,
+        )
+        return 0
+    except (AnalysisError, ConsolidationError, OSError, ValueError) as exc:
+        parser.exit(2, f"erro: {exc}\n")
 
 
 def consolidate_main(argv: list[str] | None = None) -> int:
@@ -93,8 +180,8 @@ def merchant_review_main(argv: list[str] | None = None) -> int:
     prepare.add_argument(
         "--knowledge-base",
         type=Path,
-        required=True,
-        help="Base CSV reutilizável de merchants",
+        default=default_knowledge_base_path(),
+        help="Base CSV reutilizável; padrão: armazenamento local persistente da skill",
     )
     prepare.add_argument("--categories", type=Path, help="CSV opcional de regras customizadas")
 
@@ -119,8 +206,8 @@ def merchant_review_main(argv: list[str] | None = None) -> int:
     serve.add_argument(
         "--knowledge-base",
         type=Path,
-        required=True,
-        help="Base CSV reutilizável de merchants",
+        default=default_knowledge_base_path(),
+        help="Base CSV reutilizável; padrão: armazenamento local persistente da skill",
     )
     serve.add_argument("--categories", type=Path, help="CSV opcional de regras customizadas")
     serve.add_argument("--port", type=int, default=8765, help="Porta local; padrão 8765")
@@ -135,8 +222,8 @@ def merchant_review_main(argv: list[str] | None = None) -> int:
     approve.add_argument(
         "--knowledge-base",
         type=Path,
-        required=True,
-        help="Base CSV reutilizável de merchants",
+        default=default_knowledge_base_path(),
+        help="Base CSV reutilizável; padrão: armazenamento local persistente da skill",
     )
 
     args = parser.parse_args(argv)

@@ -2,7 +2,7 @@
 name: consolidar-faturas
 description: Extraia, valide, reconcilie e consolide transações de faturas ou extratos em CSV e OFX, incluindo ZIPs. Use PDF e imagem apenas com extração assistida e confirmação quando houver incerteza. Não use para recomendações de corte de gastos.
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
 ---
 
 # Consolidar faturas e extratos
@@ -16,6 +16,15 @@ Ao ser chamada, verifique os anexos e a conversa e peça somente o que estiver f
 Se algum total não estiver disponível, peça uma declaração explícita e marque essa fatura como não verificada; nunca invente o valor. Pode inspecionar os anexos para levantar pendências, mas não conclua a consolidação sem ao menos um arquivo processável e sem um total esperado ou declaração de indisponibilidade para cada fatura. Com múltiplas faturas, confirme que a lista está completa.
 
 ## Execução
+
+Se o pedido também inclui análise e redução de despesas, use a ação única da skill de análise, que chama esta mesma consolidação e evita etapas duplicadas:
+
+```bash
+python ../analise-estrategica-despesas/scripts/process_expenses.py <entrada-ou-zip> \
+  <diretorio-saida> --expected-totals totais.csv [--open]
+```
+
+Para uma solicitação limitada à consolidação:
 
 ```bash
 python scripts/consolidate_invoices.py <entrada-ou-zip> <diretorio-saida> [--expected-totals totais.csv]

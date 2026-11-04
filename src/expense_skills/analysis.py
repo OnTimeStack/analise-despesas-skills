@@ -65,6 +65,7 @@ class ExpenseAnalyzer:
         trends = self._trends()
         quality = self._data_quality()
         savings = self._savings_potential(categories, recurring)
+        action_plan = self._action_plan(categories, recurring, installments, savings, quality)
         results: dict[str, object] = {
             "overview": overview,
             "categories": categories,
@@ -75,6 +76,7 @@ class ExpenseAnalyzer:
             "category_details": self._category_details(),
             "trends": trends,
             "savings_potential": savings,
+            "action_plan": action_plan,
             "data_quality": quality,
             "merchant_enrichment": self._merchant_enrichment_summary(),
             "insights": self._insights(
@@ -145,6 +147,22 @@ class ExpenseAnalyzer:
 
     def _overview(self) -> dict[str, object]:
         latest = self._expenses(self.latest_period)
+        latest_period_rows = [
+            transaction
+            for transaction in self.transactions
+            if transaction.periodo_referencia == self.latest_period
+        ]
+        credits = [
+            transaction
+            for transaction in latest_period_rows
+            if transaction.valor < 0 and transaction.tipo != "Pagamento"
+        ]
+        payments = [
+            transaction for transaction in latest_period_rows if transaction.tipo == "Pagamento"
+        ]
+        gross_expenses = _sum(item.valor for item in latest)
+        credit_total = abs(_sum(item.valor for item in credits))
+        payment_total = abs(_sum(item.valor for item in payments))
         banks_latest = {transaction.banco for transaction in latest}
         banks_all = {transaction.banco for transaction in self.transactions}
         cards = {
@@ -155,7 +173,11 @@ class ExpenseAnalyzer:
         return {
             "latest_period": self.latest_period,
             "all_periods": self.periods,
-            "total_latest": _number(_sum(item.valor for item in latest)),
+            "total_latest": _number(gross_expenses),
+            "gross_expenses": _number(gross_expenses),
+            "credits_total": _number(credit_total),
+            "payments_total": _number(payment_total),
+            "net_statement_total": _number(gross_expenses - credit_total),
             "transaction_count_latest": len(latest),
             "banks_latest": sorted(banks_latest),
             "banks_all": sorted(banks_all),
@@ -441,6 +463,184 @@ class ExpenseAnalyzer:
             },
         }
 
+    def _action_plan(
+        self,
+        categories: list[dict[str, object]],
+        recurring: dict[str, object],
+        installments: dict[str, object],
+        savings: dict[str, object],
+        quality: dict[str, object],
+    ) -> list[dict[str, object]]:
+        """Build a deterministic, evidence-backed plan without treating estimates as facts."""
+
+        recurring_actions: list[dict[str, object]] = []
+        raw_recurring = recurring.get("items")
+        if isinstance(raw_recurring, list):
+            for raw in raw_recurring[:8]:
+                if not isinstance(raw, dict):
+                    continue
+                amount = Decimal(str(raw.get("valor") or 0))
+                duplicate = bool(raw.get("possivel_duplicidade"))
+                merchant = str(raw.get("descricao") or "Cobrança recorrente")
+                recurring_actions.append(
+                    {
+                        "title": (
+                            f"Conferir possível duplicidade: {merchant}"
+                            if duplicate
+                            else f"Revisar uso e custo: {merchant}"
+                        ),
+                        "description": (
+                            "Confirme se há planos redundantes antes de cancelar qualquer cobrança."
+                            if duplicate
+                            else (
+                                "Compare uso, benefício e alternativas; cancele somente se "
+                                "não houver valor prático."
+                            )
+                        ),
+                        "effort": "5-15 min",
+                        "impact": "alto" if duplicate or amount >= Decimal("100") else "médio",
+                        "monthly_opportunity": _number(amount),
+                        "annualized_opportunity": _number(amount * 12),
+                        "opportunity_label": "até, após confirmação",
+                    }
+                )
+
+        installment_actions: list[dict[str, object]] = []
+        future_total = Decimal(str(installments.get("total_comprometido_futuro") or 0))
+        ending_soon = installments.get("ending_soon")
+        soon_monthly = Decimal("0.00")
+        if isinstance(ending_soon, dict):
+            soon_monthly = Decimal(str(ending_soon.get("total_monthly") or 0))
+        if future_total:
+            installment_actions.append(
+                {
+                    "title": "Suspender novos parcelamentos longos",
+                    "description": (
+                        f"Há {_format_brl(future_total)} já comprometidos. Preserve a liberação "
+                        f"de {_format_brl(soon_monthly)} por mês das parcelas próximas do fim."
+                    ),
+                    "effort": "decisão de hábito",
+                    "impact": "alto",
+                    "monthly_opportunity": _number(soon_monthly),
+                    "annualized_opportunity": 0.0,
+                    "opportunity_label": "caixa liberado em breve",
+                }
+            )
+        raw_installments = installments.get("items")
+        if isinstance(raw_installments, list):
+            for raw in raw_installments[:5]:
+                if not isinstance(raw, dict):
+                    continue
+                merchant = str(raw.get("descricao") or "Parcelamento")
+                remaining = _as_int(raw.get("restantes"))
+                committed = Decimal(str(raw.get("comprometido_futuro") or 0))
+                installment_actions.append(
+                    {
+                        "title": f"Acompanhar parcela: {merchant}",
+                        "description": (
+                            f"Custo já contratado: {remaining} parcela(s) e "
+                            f"{_format_brl(committed)} restantes. Não conte como corte possível."
+                        ),
+                        "effort": "acompanhamento",
+                        "impact": "médio",
+                        "monthly_opportunity": 0.0,
+                        "annualized_opportunity": 0.0,
+                        "opportunity_label": "sunk cost",
+                    }
+                )
+
+        category_rates = {
+            "Restaurante e Lanchonete": Decimal("0.20"),
+            "Lazer e Entretenimento": Decimal("0.20"),
+            "Vestuário e Cuidados Pessoais": Decimal("0.20"),
+            "Alimentação em Geral": Decimal("0.15"),
+        }
+        optimization_actions: list[dict[str, object]] = []
+        for row in categories:
+            category = str(row.get("categoria") or "")
+            rate = category_rates.get(category)
+            if rate is None:
+                continue
+            total = Decimal(str(row.get("total") or 0))
+            target = total * rate
+            if target <= 0:
+                continue
+            optimization_actions.append(
+                {
+                    "title": f"Definir teto para {category}",
+                    "description": (
+                        f"Cenário: reduzir {int(rate * 100)}% sobre {_format_brl(total)} "
+                        "com limite mensal e revisão semanal."
+                    ),
+                    "effort": "30 min + rotina",
+                    "impact": "alto" if target >= Decimal("200") else "médio",
+                    "monthly_opportunity": _number(target),
+                    "annualized_opportunity": _number(target * 12),
+                    "opportunity_label": "estimativa de cenário",
+                }
+            )
+
+        review_actions: list[dict[str, object]] = []
+        unknown_pct = _as_float(quality.get("uncategorized_expense_pct") or 0)
+        if unknown_pct > 10:
+            review_actions.append(
+                {
+                    "title": "Concluir a revisão dos merchants",
+                    "description": (
+                        f"{unknown_pct:.1f}% das despesas ainda não sustentam decisões por "
+                        "categoria. "
+                        "Aprove somente correspondências conferidas e recalcule o plano."
+                    ),
+                    "effort": "15-30 min",
+                    "impact": "alto",
+                    "monthly_opportunity": 0.0,
+                    "annualized_opportunity": 0.0,
+                    "opportunity_label": "qualidade dos dados",
+                }
+            )
+        review_actions.append(
+            {
+                "title": "Revisar o plano no fechamento de cada fatura",
+                "description": (
+                    "Compare realizado versus teto, confirme recorrências e direcione o caixa "
+                    "liberado por parcelas encerradas."
+                ),
+                "effort": "20 min/mês",
+                "impact": "médio",
+                "monthly_opportunity": _as_float(savings.get("moderate") or 0),
+                "annualized_opportunity": _as_float(savings.get("moderate") or 0) * 12,
+                "opportunity_label": "cenário moderado",
+            }
+        )
+
+        phases = [
+            {
+                "phase": 1,
+                "title": "Cortes imediatos",
+                "subtitle": "Recorrências e duplicidades: maior retorno por minuto de esforço.",
+                "actions": recurring_actions,
+            },
+            {
+                "phase": 2,
+                "title": "Contenção",
+                "subtitle": "Proteja o caixa e não tente cancelar custos já contratados.",
+                "actions": installment_actions,
+            },
+            {
+                "phase": 3,
+                "title": "Otimização",
+                "subtitle": "Ajuste tetos nas categorias flexíveis sem julgamento moral.",
+                "actions": optimization_actions,
+            },
+            {
+                "phase": 4,
+                "title": "Revisão mensal",
+                "subtitle": "Melhore a qualidade e mantenha o plano atualizado.",
+                "actions": review_actions,
+            },
+        ]
+        return [phase for phase in phases if phase["actions"]]
+
     def _data_quality(self) -> dict[str, object]:
         expenses = self._expenses()
         unknown = [item for item in expenses if item.categoria == UNKNOWN_CATEGORY]
@@ -600,6 +800,11 @@ def _sum(values) -> Decimal:
 
 def _number(value: Decimal) -> float:
     return float(format_money(value))
+
+
+def _format_brl(value: Decimal) -> str:
+    formatted = f"{value:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
+    return f"R$ {formatted}"
 
 
 def _pct(value: Decimal, total: Decimal) -> float:

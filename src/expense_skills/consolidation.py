@@ -77,7 +77,7 @@ class ConsolidationReport:
         return bool(
             self.unsupported_files
             or self.validation_errors
-            or any(item.status == "divergente" for item in self.reconciliations)
+            or any(item.status != "conciliado" for item in self.reconciliations)
         )
 
     def to_dict(self) -> dict[str, object]:

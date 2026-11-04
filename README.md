@@ -1,11 +1,11 @@
 # Análise de despesas — skills e núcleo compartilhado
 
-Plugin reutilizável para ChatGPT, Codex e agentes compatíveis com Agent Skills. O fluxo separa integridade de extração e conciliação da interpretação estratégica:
+Plugin reutilizável para ChatGPT, Codex e agentes compatíveis com Agent Skills. Para o usuário, o fluxo recomendado é uma ação única; internamente, ele preserva a separação entre integridade de extração, conciliação e interpretação estratégica:
 
-Versão atual do bundle de skills e do pacote Python: **1.2.0**.
+Versão atual do bundle de skills e do pacote Python: **1.3.0**.
 
 ```text
-CSV / OFX / ZIP ──► consolidar-faturas ──► consolidado.csv
+CSV / OFX / ZIP ──► processar-despesas ──► consolidação + conciliação
 PDF / imagem ──► extração assistida ─────┘        │
                                                     ▼
                                   revisão de merchants
@@ -30,6 +30,9 @@ PDF / imagem ──► extração assistida ─────┘        │
 - O dashboard não depende de fontes ou bibliotecas externas.
 - Merchants são revisados uma única vez por nome original e reutilizados por uma base de conhecimento portátil.
 - Sugestões inseguras falham para `Desconhecido`/`Desconhecida`, evitando falsos positivos.
+- O comando `processar-despesas` consolida, concilia, prepara a revisão e gera o painel em uma única execução.
+- Rascunho e aprovação são ações distintas: só aprovações explícitas atualizam os insights.
+- O dashboard separa despesas brutas, créditos e total líquido e recupera o plano por fases, recorrências e cronograma de parcelas.
 
 ## Arquitetura
 
@@ -67,7 +70,17 @@ Para desenvolvimento local:
 uv sync
 ```
 
-Depois disso, use os scripts das skills mostrados abaixo ou os comandos instalados `consolidar-faturas`, `revisar-merchants` e `analisar-despesas`. Os wrappers não possuem regras próprias: todos chamam o mesmo núcleo, evitando divergência entre agentes.
+Depois disso, use os scripts das skills mostrados abaixo ou o comando instalado `processar-despesas`. Os comandos especializados `consolidar-faturas`, `revisar-merchants` e `analisar-despesas` continuam disponíveis para manutenção e casos parciais. Os wrappers não possuem regras próprias: todos chamam o mesmo núcleo, evitando divergência entre agentes.
+
+## Fluxo recomendado em uma ação
+
+```bash
+python skills/analise-estrategica-despesas/scripts/process_expenses.py \
+  entrada output --expected-totals totais.csv \
+  --open
+```
+
+O comando aceita arquivo, ZIP ou diretório. Ele consolida e concilia cada `banco + período`; somente quando todas as reconciliações estão válidas ele gera `analysis_results.json`, `merchant_review.html`, `analise_estrategica_despesas.html` e inicia a aplicação local. Total ausente, divergência ou arquivo pendente encerra o fluxo com código 2 antes da análise. Para automação, `--no-serve` gera os artefatos sem manter o servidor.
 
 ### Comportamento esperado no chat
 
@@ -76,11 +89,11 @@ O usuário pode simplesmente pedir uma análise de despesas. A skill deve então
 1. inventariar anexos e informações já fornecidas;
 2. explicar, em linguagem simples, o que ainda precisa ser enviado;
 3. pedir o total de cada fatura ou uma declaração explícita de que ele não está disponível;
-4. perguntar se existe uma base de merchants anterior;
+4. carregar automaticamente a base local persistente de merchants;
 5. consolidar e reconciliar antes de iniciar a análise;
-6. abrir a revisão humana dos merchants e, após a aprovação, atualizar os insights localmente.
+6. abrir a revisão humana dos merchants e, após a aprovação completa, atualizar os insights localmente.
 
-O agente não deve responder apenas com nomes técnicos de arquivos. Quando o usuário não tiver uma base anterior ou categorias próprias, ele deve explicar que esses itens são opcionais e seguir com uma base vazia e as categorias padrão.
+O agente não deve responder apenas com nomes técnicos de arquivos. A base local é criada e reutilizada automaticamente; categorias próprias continuam opcionais.
 
 ## Triagem guiada ao iniciar
 
@@ -89,9 +102,9 @@ Quando uma das skills é chamada, ela primeiro inventaria o que já foi anexado 
 - arquivos de todas as faturas ou extratos;
 - `arquivo | banco/cartão | período | total` para cada fatura;
 - confirmação explícita quando um total não estiver disponível;
-- base de merchants anterior, classificações históricas ou categorias próprias, quando existirem.
+- classificações históricas ou categorias próprias, quando existirem.
 
-Banco, período e moeda são solicitados apenas quando não puderem ser identificados com segurança no documento. Classificações e categorias anteriores são opcionais. A consolidação exige ao menos um arquivo processável e registra como não verificada qualquer fatura cujo total tenha sido declarado indisponível; a análise só começa depois que houver um consolidado processável e uma resposta sobre a existência da base anterior.
+Banco, período e moeda são solicitados apenas quando não puderem ser identificados com segurança no documento. Classificações e categorias anteriores são opcionais. A consolidação exige ao menos um arquivo processável e registra como não verificada qualquer fatura cujo total tenha sido declarado indisponível.
 
 ## Consolidação
 
@@ -130,15 +143,17 @@ O fluxo recomendado mantém insights e classificação em páginas separadas:
 
 ```bash
 python skills/analise-estrategica-despesas/scripts/review_merchants.py serve \
-  output/consolidado.csv analysis-output \
-  --knowledge-base merchant_knowledge_base.csv --open
+  output/consolidado.csv analysis-output --open
 ```
 
 A aplicação fica disponível apenas em `127.0.0.1`:
 
-- `Insights`: visão atualizada de totais, categorias, prioridades, maiores despesas e recorrências;
+- `Insights`: despesas brutas, créditos, total líquido, qualidade, categorias, plano por fases, recorrências, parcelas e cenários de economia;
 - `Classificação`: tabela editável e filtrável de merchants únicos;
-- `Salvar e atualizar insights`: importa aprovações, mantém alterações pendentes em `merchant_review_draft.csv`, recalcula `analysis_results.json` e volta para os insights atualizados.
+- `Baixar revisão CSV`: exporta a revisão completa, preservando os campos técnicos de auditoria;
+- `Aprovar revisão`: único controle de aprovação; incorpora todas as linhas, recalcula `analysis_results.json` e volta para o plano atualizado.
+
+A base aprovada é armazenada por padrão em `~/.local/share/analise-despesas-skills/merchant_knowledge_base.csv`, com acesso restrito ao usuário, e carregada automaticamente nas próximas execuções. `--knowledge-base` permanece disponível somente para selecionar uma base diferente.
 
 Esse processamento é local e determinístico. Nenhuma chamada de IA é necessária para atualizar as métricas. Uma nova narrativa gerada por IA pode ser produzida separadamente quando solicitada, sujeita aos controles de custo aplicáveis.
 
@@ -148,8 +163,7 @@ Prepare a revisão usando a base existente, mesmo que ela ainda não exista:
 
 ```bash
 python skills/analise-estrategica-despesas/scripts/review_merchants.py prepare \
-  output/consolidado.csv merchant-review \
-  --knowledge-base merchant_knowledge_base.csv
+  output/consolidado.csv merchant-review
 ```
 
 Abra `merchant-review/merchant_review.html`. A tela autocontida apresenta somente merchants únicos, ordenados alfabeticamente, e permite:
@@ -157,7 +171,7 @@ Abra `merchant-review/merchant_review.html`. A tela autocontida apresenta soment
 - ordenar e filtrar por qualquer coluna;
 - comparar nome original, nome amigável, confidence, categoria, origem e ocorrências;
 - editar nome amigável e categoria;
-- aprovar itens individualmente ou em lote e baixar `merchant_review_approved.csv`.
+- aprovar e baixar a revisão completa em `merchant_review_approved.csv`.
 
 Importe somente depois da revisão humana:
 
@@ -166,7 +180,15 @@ python skills/analise-estrategica-despesas/scripts/review_merchants.py approve \
   merchant_review_approved.csv --knowledge-base merchant_knowledge_base.csv
 ```
 
-Somente linhas marcadas como aprovadas entram na base. Elas passam a ter confidence 100% e são reutilizadas sem nova classificação. Se não houver evidência razoável, a sugestão fica como nome `Desconhecido`, categoria `Desconhecida` e confidence 0%, para evitar falsos positivos.
+O download da revisão marca todas as linhas como aprovadas. Elas passam a ter confidence 100% e são reutilizadas sem nova classificação. Se não houver evidência razoável, o nome e a categoria permanecem explicitamente desconhecidos.
+
+### Pesquisa complementar de desconhecidos
+
+Depois das regras determinísticas e antes da aprovação humana, o agente pesquisa somente os merchants ainda desconhecidos. A consulta usa o descritor público e, quando disponível sem expor a fatura, a localização provável. Valores, datas, banco, cartão e o conjunto de transações nunca são enviados a buscadores ou serviços externos.
+
+Sites oficiais, diretórios de shopping, cadastros públicos e conselhos profissionais têm preferência. Categoria nativa e frequência podem ajudar a avaliar candidatos localmente, mas não comprovam identidade. Uma correspondência razoável pode preencher nome amigável e categoria no rascunho; ela permanece sem aprovação e sem confidence 100% até a decisão do usuário. Descritores genéricos, nomes de pessoa e resultados conflitantes continuam explicitamente desconhecidos.
+
+A pesquisa não chama serviços pagos ou medidos implicitamente. O agente informa quantas sugestões foram enriquecidas, quais permaneceram pendentes e as principais fontes usadas.
 
 Classificações anteriores em `descricao,categoria[,categoria_nativa]` podem alimentar a mesma revisão:
 
@@ -198,13 +220,13 @@ O formato é `categoria,palavras_chave,prioridade`, com palavras-chave separadas
 
 - `analysis_results.json`: métricas, qualidade, cenários e insights estruturados;
 - `consolidado_categorizado.csv`: transações categorizadas, com nome amigável, confidence, aprovação e origem da classificação;
-- `analise_estrategica_despesas.html`: produzido pelo agente exclusivamente a partir dos agregados JSON.
+- `analise_estrategica_despesas.html`: painel autocontido produzido exclusivamente a partir dos agregados JSON.
 
 Relatórios, rankings, recorrências e insights usam o nome amigável. O nome original permanece no CSV e nos campos de auditoria do JSON.
 
 ### Portabilidade da base
 
-`merchant_knowledge_base.csv` é a fonte compartilhada entre Claude, ChatGPT e Codex; não depende da memória de um provedor. Em execução local, mantenha o arquivo no workspace. Em um chat sem armazenamento persistente, guarde-o fora da conversa e anexe-o novamente na próxima análise. Isso também torna o histórico auditável e evita gastar tokens reclassificando merchants conhecidos.
+`merchant_knowledge_base.csv` é a fonte compartilhada entre Claude, ChatGPT e Codex; não depende da memória de um provedor. A execução local usa automaticamente `~/.local/share/analise-despesas-skills/merchant_knowledge_base.csv`. Em um ambiente efêmero, use `--knowledge-base` apontando para um local persistente. Isso torna o histórico auditável e evita reclassificar merchants conhecidos.
 
 ## Testes
 
