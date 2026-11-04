@@ -24,13 +24,13 @@ The best recommendations are **Trivial effort + High impact**. Always present th
 
 What to look for:
 - **Duplicate services**: Multiple charges from the same provider (e.g., 2-3 LinkedIn plans, multiple streaming services from same family)
-- **Unused subscriptions**: Services the user likely forgot about (small charges from unfamiliar names)
+- **Possibly unused subscriptions**: Ask the user to confirm usage; an unfamiliar or small charge is not proof of waste
 - **Overlapping tools**: Multiple AI tools, multiple cloud storage services, multiple fitness apps
 - **Loyalty/rewards programs**: Monthly fees for points programs that may not justify the cost (Smiles, Livelo, airline clubs) — these are especially insidious because the "value" is deferred and psychological
 - **Premium tiers**: Could a cheaper plan suffice? (e.g., LinkedIn Premium vs. Basic)
 
 Detection heuristic for recurring charges:
-1. Same `descricao` appears monthly across multiple `periodo_referencia` values
+1. Same approved friendly merchant name appears monthly across multiple `periodo_referencia` values
 2. Fixed amount (no variation or very small variation)
 3. Categorized as "Serviços Recorrentes" or similar
 4. Known subscription keywords: "SUBSCRIPTION", "ASSINATURA", "MENSAL", "PLANO", "CLUBE", "PRIME", ".AI", "SaaS names"
@@ -88,7 +88,7 @@ What to look for:
 
 ## Trend Interpretation Rules
 
-From categorias_evolucao.csv:
+From the `trends` section of `analysis_results.json`:
 
 | Trend | Signal | Action |
 |-------|--------|--------|
@@ -101,7 +101,7 @@ From categorias_evolucao.csv:
 
 Special cases:
 - A category showing "—" trend means insufficient data (only 1 month) — skip trend analysis
-- Categories with R$ 0 in early months that suddenly appear are "new spending" — treat as potential concern
+- Categories with R$ 0 in early months that suddenly appear are "new spending" — ask for context before treating them as a concern
 - "Pagamentos e Créditos" should be excluded from trend analysis — it's a settlement category, not spending
 
 ## Multi-Card / Multi-Bank Analysis
@@ -109,7 +109,7 @@ Special cases:
 Always check for:
 1. **All banks present in data** — even if a bank has no transactions in the latest period, it may have active installments
 2. **Card count per bank** — some banks have multiple cards (additional cards for family members)
-3. **Cross-bank patterns** — same merchant appearing on different cards (possible duplicate charges or split spending)
+3. **Cross-bank patterns** — same approved friendly merchant appearing on different cards (possible duplicate charges or split spending)
 4. **Bank-level totals** — show the user which card/bank concentrates the most spending
 
 If a bank is missing from the latest period:

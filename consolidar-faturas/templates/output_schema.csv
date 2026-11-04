@@ -2,7 +2,7 @@ banco,periodo_referencia,data_transacao,cartao,descricao,parcela,valor,tipo,cate
 Santander,Dez/2025,25/11/2025,,SALDO ANTERIOR,,55.00,Saldo Anterior,,
 Santander,Dez/2025,29/10/2025,,EXTRA FARMA 7026,02/02,58.49,Despesa/Parcelamento,,
 Santander,Dez/2025,22/12/2025,,ANUIDADE DIFERENCIADA,,55.00,Despesa/Parcelamento,,
-Santander,Dez/2025,22/11/2025,,MERCADOLIVRE*MERCADOL,,-281.91,Pagamento,,
+Santander,Dez/2025,22/11/2025,,ESTORNO MERCADOLIVRE,,-281.91,Crédito,,
 Porto Seguro,Jan/2026,15/01/2026,1234,COMPRA LOJA XYZ,,150.50,Despesa/Parcelamento,,
 NuBank,Jan/2026,10/01/2026,5678,AMAZON MARKETPLACE,01/03,299.99,Despesa/Parcelamento,,
 C6 Bank,Jan/2026,12/01/2026,9999,NETFLIX BRASIL,,19.90,Despesa/Parcelamento,,Compras

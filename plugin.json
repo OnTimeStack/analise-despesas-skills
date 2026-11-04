@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "analise-despesas",
+  "version": "1.0.0",
+  "description": "Consolida faturas, enriquece merchants com revisão humana reutilizável e produz análises de despesas reproduzíveis.",
+  "author": {
+    "name": "OnTimeStack",
+    "url": "https://github.com/OnTimeStack"
+  },
+  "repository": "https://github.com/OnTimeStack/analise-despesas-skills",
+  "keywords": [
+    "financas pessoais",
+    "faturas",
+    "extratos",
+    "analise de despesas",
+    "revisao de merchants"
+  ]
+}
+
