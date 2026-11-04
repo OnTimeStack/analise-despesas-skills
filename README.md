@@ -2,7 +2,7 @@
 
 Plugin reutilizável para ChatGPT, Codex e agentes compatíveis com Agent Skills. O fluxo separa integridade de extração e conciliação da interpretação estratégica:
 
-Versão atual do bundle de skills e do pacote Python: **1.2.0**.
+Versão atual do bundle de skills e do pacote Python: **1.3.0**.
 
 ```text
 CSV / OFX / ZIP ──► consolidar-faturas ──► consolidado.csv
@@ -167,6 +167,14 @@ python skills/analise-estrategica-despesas/scripts/review_merchants.py approve \
 ```
 
 Somente linhas marcadas como aprovadas entram na base. Elas passam a ter confidence 100% e são reutilizadas sem nova classificação. Se não houver evidência razoável, a sugestão fica como nome `Desconhecido`, categoria `Desconhecida` e confidence 0%, para evitar falsos positivos.
+
+### Pesquisa complementar de desconhecidos
+
+Depois das regras determinísticas e antes da aprovação humana, o agente pesquisa somente os merchants ainda desconhecidos. A consulta usa o descritor público e, quando disponível sem expor a fatura, a localização provável. Valores, datas, banco, cartão e o conjunto de transações nunca são enviados a buscadores ou serviços externos.
+
+Sites oficiais, diretórios de shopping, cadastros públicos e conselhos profissionais têm preferência. Categoria nativa e frequência podem ajudar a avaliar candidatos localmente, mas não comprovam identidade. Uma correspondência razoável pode preencher nome amigável e categoria no rascunho; ela permanece sem aprovação e sem confidence 100% até a decisão do usuário. Descritores genéricos, nomes de pessoa e resultados conflitantes continuam explicitamente desconhecidos.
+
+A pesquisa não chama serviços pagos ou medidos implicitamente. O agente informa quantas sugestões foram enriquecidas, quais permaneceram pendentes e as principais fontes usadas.
 
 Classificações anteriores em `descricao,categoria[,categoria_nativa]` podem alimentar a mesma revisão:
 

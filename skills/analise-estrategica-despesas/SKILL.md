@@ -2,7 +2,7 @@
 name: analise-estrategica-despesas
 description: Enriqueça merchants com revisão humana e base de conhecimento, categorize e analise um consolidado financeiro para identificar concentração, recorrências, parcelamentos, tendências e oportunidades de redução. Use após a consolidação; não use para extrair PDFs ou conciliar faturas.
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
 ---
 
 # Análise estratégica de despesas
@@ -48,15 +48,26 @@ Não repita perguntas já respondidas pelos arquivos ou pela conversa. Só inici
 
    Preserve a categoria anterior como sugestão, nunca como nova aprovação automática. Converta `Despesas Diversas` para `Desconhecida`, sinalize divergências entre categorias anteriores e exclua registros puramente contábeis. Use `categoria_nativa` apenas como contexto visível para o revisor.
 
-3. Entregue `merchant_review.html` ao usuário e pare. A aprovação precisa ser humana: não marque itens nem presuma concordância. A página lista somente nomes únicos, em ordem alfabética, e permite ordenar e filtrar todas as colunas, editar nome amigável/categoria e baixar o CSV revisado.
-4. Depois que o usuário devolver o CSV baixado, importe somente as linhas explicitamente aprovadas:
+3. Antes da revisão humana, faça uma pesquisa complementar somente para as linhas que continuarem como `Desconhecido`/`Desconhecida` após a base aprovada, as regras determinísticas e os dados históricos. Quando houver acesso à internet:
+
+   - pesquise o descritor público do merchant, individualmente ou em pequenos grupos relacionados, usando nome comercial e localização provável quando ela já estiver disponível sem expor a fatura;
+   - nunca envie valor, data, banco, cartão, conjunto de transações ou qualquer outro dado financeiro a mecanismos de busca ou serviços externos;
+   - priorize site oficial, diretório oficial de shopping, cadastro público de empresa ou conselho profissional e páginas institucionais. Use agregadores e trechos de busca apenas como apoio; descritores genéricos ou nomes de pessoa exigem correspondência adicional de localidade e atividade;
+   - use `categoria_nativa`, ocorrências e contexto do consolidado apenas localmente para avaliar candidatos. Eles não bastam, isoladamente, para identificar o merchant;
+   - ao encontrar evidência razoável, preencha somente a sugestão de nome amigável e categoria na página local ou no rascunho. Mantenha a linha pendente, sem marcar aprovação e sem elevar confidence para 100%; registre fontes ou uma justificativa curta nas notas de trabalho para conseguir explicar a sugestão ao usuário;
+   - se houver múltiplos candidatos plausíveis, nenhuma correspondência confiável ou acesso indisponível, preserve `Desconhecido`, `Desconhecida` e confidence 0%. Não force uma classificação para reduzir a contagem de desconhecidos.
+
+   A pesquisa pública enriquece o rascunho, mas não altera a exigência de aprovação humana. Serviços pagos, medidos ou que exijam transmitir dados financeiros não fazem parte desta etapa implícita.
+
+4. Entregue `merchant_review.html` ao usuário e pare. A aprovação precisa ser humana: não marque itens nem presuma concordância. A página lista somente nomes únicos, em ordem alfabética, e permite ordenar e filtrar todas as colunas, editar nome amigável/categoria e baixar o CSV revisado. Informe quantas sugestões a pesquisa resolveu, quais permaneceram desconhecidas e as principais fontes utilizadas.
+5. Depois que o usuário devolver o CSV baixado, importe somente as linhas explicitamente aprovadas:
 
    ```bash
    python scripts/review_merchants.py approve <merchant_review_approved.csv> \
      --knowledge-base <merchant_knowledge_base.csv>
    ```
 
-5. Execute a análise exigindo que todos os merchants estejam aprovados:
+6. Execute a análise exigindo que todos os merchants estejam aprovados:
 
    ```bash
    python scripts/analyze_expenses.py <consolidado.csv> <diretorio-saida> \
@@ -64,9 +75,9 @@ Não repita perguntas já respondidas pelos arquivos ou pela conversa. Só inici
      [--categories categorias.csv] [--reclassify]
    ```
 
-6. Leia `analysis_results.json`. Use exclusivamente seus agregados para totais, percentuais, compromissos futuros e faixas de economia. Nomes exibidos em relatórios e insights devem ser os nomes amigáveis.
-7. Verifique `data_quality` antes de interpretar tendências. Com menos de três períodos, descreva tendências como evidência limitada. Se mais de 10% das despesas estiverem em `Desconhecida`, destaque a necessidade de revisão.
-8. Gere um dashboard HTML autocontido seguindo `references/dashboard.md`, sem bibliotecas, fontes ou chamadas externas. Entregue também `consolidado_categorizado.csv` e `analysis_results.json`.
+7. Leia `analysis_results.json`. Use exclusivamente seus agregados para totais, percentuais, compromissos futuros e faixas de economia. Nomes exibidos em relatórios e insights devem ser os nomes amigáveis.
+8. Verifique `data_quality` antes de interpretar tendências. Com menos de três períodos, descreva tendências como evidência limitada. Se mais de 10% das despesas estiverem em `Desconhecida`, destaque a necessidade de revisão.
+9. Gere um dashboard HTML autocontido seguindo `references/dashboard.md`, sem bibliotecas, fontes ou chamadas externas. Entregue também `consolidado_categorizado.csv` e `analysis_results.json`.
 
 ## Segurança da classificação
 

@@ -2,7 +2,7 @@
 name: analise-estrategica-despesas
 description: Enriqueça merchants com revisão humana e base de conhecimento, categorize e analise um consolidado financeiro para identificar concentração, recorrências, parcelamentos, tendências e oportunidades de redução. Use após a consolidação; não use para extrair PDFs ou conciliar faturas.
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
 ---
 
 # Análise estratégica de despesas
@@ -26,6 +26,10 @@ python scripts/review_merchants.py serve <consolidado.csv> <diretorio-saida> \
 
 Ela oferece páginas separadas de `Insights` e `Classificação`. Salvar a classificação atualiza a base aprovada, preserva rascunhos pendentes e recalcula os insights localmente. IA externa não é necessária para os cálculos determinísticos e não deve ser chamada automaticamente.
 
+Antes de pedir aprovação, pesquise na internet somente os merchants que permanecerem como `Desconhecido`/`Desconhecida`. Use apenas o descritor público e, quando já conhecida sem expor a fatura, a localização provável; nunca envie valores, datas, banco, cartão ou o conjunto de transações. Priorize páginas oficiais, diretórios de shopping, cadastros públicos e conselhos profissionais. Use categoria nativa e ocorrências somente como contexto local, não como prova de identidade.
+
+Quando a evidência corresponder ao descritor, preencha nome amigável e categoria apenas como sugestão local, mantenha confidence abaixo de 100% e não marque aprovação. Registre as fontes para explicá-las ao usuário. Nomes de pessoa, descritores genéricos ou candidatos conflitantes continuam como `Desconhecido`/`Desconhecida`; não force uma classificação. A etapa não usa serviços pagos ou medidos implicitamente e não substitui a revisão humana.
+
 Use o fluxo por arquivos somente quando o servidor local não estiver disponível:
 
 ```bash
@@ -33,7 +37,7 @@ python scripts/review_merchants.py prepare <consolidado.csv> <diretorio-saida> \
   --knowledge-base <merchant_knowledge_base.csv> [--categories categorias.csv]
 ```
 
-Entregue `merchant_review.html` e pare até o usuário revisar os nomes únicos, editar nome amigável/categoria, aprovar e devolver o CSV baixado. Não aprove em nome do usuário. Depois importe e analise:
+Entregue `merchant_review.html`, resuma quantas sugestões foram enriquecidas e quais continuaram desconhecidas, e pare até o usuário revisar os nomes únicos, editar nome amigável/categoria, aprovar e devolver o CSV baixado. Não aprove em nome do usuário. Depois importe e analise:
 
 Para classificações anteriores em `descricao,categoria[,categoria_nativa]`, use primeiro:
 
