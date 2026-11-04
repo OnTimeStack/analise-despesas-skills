@@ -55,8 +55,14 @@ class ExpenseReviewApplicationTests(unittest.TestCase):
             self.assertIn("Netflix Brasil", knowledge.read_text(encoding="utf-8"))
             self.assertIn("Netflix Brasil", application.insights_html)
             self.assertIn('href="/classification"', application.insights_html)
-            self.assertIn("Salvar e atualizar insights", application.review_html)
+            self.assertIn("Salvar rascunho", application.review_html)
+            self.assertIn("Aprovar selecionados e atualizar insights", application.review_html)
+            self.assertIn("Plano estratégico de redução", application.insights_html)
+            self.assertIn("Potencial de economia", application.insights_html)
+            self.assertIn("Previsão de encerramento", application.insights_html)
             self.assertTrue((root / "output" / "analysis_results.json").is_file())
+            self.assertTrue((root / "output" / "merchant_review.html").is_file())
+            self.assertTrue((root / "output" / "analise_estrategica_despesas.html").is_file())
 
     def test_unapproved_edits_remain_drafts_without_changing_knowledge(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -90,12 +96,17 @@ class ExpenseReviewApplicationTests(unittest.TestCase):
                 }
             )
 
-            result = application.save_review(rows)
+            result = application.save_review(rows, mode="draft")
 
             self.assertEqual(result["pending_review"], 1)
+            self.assertFalse(result["insights_updated_locally"])
+            self.assertEqual(result["next_url"], "/classification")
             self.assertNotIn("Rascunho Loja", knowledge.read_text(encoding="utf-8"))
             self.assertEqual(application.decisions[0].friendly_name, "Rascunho Loja")
             self.assertTrue((root / "output" / "merchant_review_draft.csv").is_file())
+
+            with self.assertRaisesRegex(ValueError, "nenhum merchant foi aprovado"):
+                application.save_review(rows, mode="approve")
 
 
 if __name__ == "__main__":

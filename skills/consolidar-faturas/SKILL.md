@@ -24,15 +24,23 @@ Pode inspecionar os arquivos recebidos para descobrir campos e apontar pendênci
 ## Fluxo
 
 1. Faça a triagem acima e inspecione todos os arquivos antes de processar.
-2. Para CSV e OFX, execute o script determinístico:
+2. Se o pedido também inclui categorização e redução de despesas, prefira o fluxo unificado da skill `analise-estrategica-despesas`, que executa esta mesma consolidação antes da revisão:
+
+   ```bash
+   python ../analise-estrategica-despesas/scripts/process_expenses.py <entrada-ou-zip> \
+     <diretorio-saida> --expected-totals totais.csv [--open]
+   ```
+
+   Não execute uma segunda consolidação separada depois disso.
+3. Para uma solicitação limitada à consolidação, execute o script determinístico:
 
    ```bash
    python scripts/consolidate_invoices.py <entrada-ou-zip> <diretorio-saida> [--expected-totals totais.csv]
    ```
 
-3. Para PDF ou imagem, extraia visualmente apenas dados legíveis, registre a origem e converta-os para o esquema padronizado antes de executar o script novamente. Nunca deduza uma transação pela diferença entre subtotal e total.
-4. Leia `consolidation_report.json`. Se `requer_confirmacao` for verdadeiro ou o processo sair com código 2, apresente ao usuário os arquivos pendentes e as divergências; não declare reconciliação concluída.
-5. Entregue `consolidado.csv`, `padronizado.zip`, `consolidation_report.json` e `consolidation_summary.log`.
+4. Para PDF ou imagem, extraia visualmente apenas dados legíveis, registre a origem e converta-os para o esquema padronizado antes de executar o script novamente. Nunca deduza uma transação pela diferença entre subtotal e total.
+5. Leia `consolidation_report.json`. Se `requer_confirmacao` for verdadeiro ou o processo sair com código 2, apresente ao usuário os arquivos pendentes e as divergências; não declare reconciliação concluída.
+6. Entregue `consolidado.csv`, `padronizado.zip`, `consolidation_report.json` e `consolidation_summary.log`.
 
 ## Totais esperados
 

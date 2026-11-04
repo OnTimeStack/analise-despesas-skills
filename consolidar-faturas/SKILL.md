@@ -17,6 +17,15 @@ Se algum total não estiver disponível, peça uma declaração explícita e mar
 
 ## Execução
 
+Se o pedido também inclui análise e redução de despesas, use a ação única da skill de análise, que chama esta mesma consolidação e evita etapas duplicadas:
+
+```bash
+python ../analise-estrategica-despesas/scripts/process_expenses.py <entrada-ou-zip> \
+  <diretorio-saida> --expected-totals totais.csv [--open]
+```
+
+Para uma solicitação limitada à consolidação:
+
 ```bash
 python scripts/consolidate_invoices.py <entrada-ou-zip> <diretorio-saida> [--expected-totals totais.csv]
 ```

@@ -129,6 +129,34 @@ class ConsolidationTests(unittest.TestCase):
             machine_report = json.loads((output_dir / "consolidation_report.json").read_text())
             self.assertEqual(machine_report["arquivos_nao_processados"], ["fatura.pdf"])
 
+    def test_missing_expected_total_requires_confirmation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "fatura.csv"
+            output = root / "output"
+            write_csv(
+                source,
+                [
+                    {
+                        "banco": "Banco A",
+                        "periodo_referencia": "Jan/2026",
+                        "data_transacao": "01/01/2026",
+                        "cartao": "",
+                        "descricao": "Compra",
+                        "parcela": "",
+                        "valor": "10.00",
+                        "tipo": "Despesa/Parcelamento",
+                        "categoria": "",
+                        "categoria_nativa": "",
+                    }
+                ],
+            )
+
+            report = InvoiceConsolidator(source, output).run()
+
+            self.assertEqual(report.reconciliations[0].status, "não verificado")
+            self.assertTrue(report.requires_confirmation)
+
     def test_reads_basic_ofx_without_external_dependencies(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -1,6 +1,6 @@
 ---
 name: analise-estrategica-despesas
-description: Enriqueça merchants com revisão humana e base de conhecimento, categorize e analise um consolidado financeiro para identificar concentração, recorrências, parcelamentos, tendências e oportunidades de redução. Use após a consolidação; não use para extrair PDFs ou conciliar faturas.
+description: Processe faturas de ponta a ponta, conciliando cada total antes de enriquecer merchants com pesquisa e revisão humana, categorizar e gerar um plano acionável de redução de despesas. Use para uma ou várias faturas em CSV, OFX ou ZIP e para reabrir uma análise consolidada.
 metadata:
   version: "1.3.0"
 ---
@@ -15,7 +15,19 @@ Ao ser chamada, verifique primeiro os anexos e a conversa e peça somente o que 
 
 Com o consolidado, confira `consolidation_report.json` quando existir e mantenha divergências visíveis. Pergunte se o usuário possui `merchant_knowledge_base.csv`; se não possuir, avise que uma base vazia será criada e que o arquivo gerado deve ser guardado para reutilização. Pergunte também se há classificações históricas ou categorias customizadas, deixando claro que são opcionais. Só inicie a análise depois de ter um consolidado processável e uma resposta sobre a base anterior. Não repita informações já inferidas com segurança dos arquivos.
 
-## Execução com revisão humana obrigatória
+## Execução unificada com revisão humana obrigatória
+
+Para arquivos brutos, use preferencialmente uma única ação:
+
+```bash
+python scripts/process_expenses.py <entrada-ou-zip> <diretorio-saida> \
+  --expected-totals <totais.csv> [--knowledge-base merchant_knowledge_base.csv] \
+  [--categories categorias.csv] [--open]
+```
+
+Ela consolida, deduplica e concilia cada banco/período antes de gerar a análise e abrir a revisão. Total ausente, divergência ou arquivo pendente encerra o comando com código 2 antes da análise. `--no-serve` gera somente os artefatos.
+
+Se já existir um `consolidado.csv` reconciliado, abra diretamente a aplicação:
 
 Prefira a aplicação local integrada:
 
@@ -24,7 +36,7 @@ python scripts/review_merchants.py serve <consolidado.csv> <diretorio-saida> \
   --knowledge-base <merchant_knowledge_base.csv> [--categories categorias.csv] [--open]
 ```
 
-Ela oferece páginas separadas de `Insights` e `Classificação`. Salvar a classificação atualiza a base aprovada, preserva rascunhos pendentes e recalcula os insights localmente. IA externa não é necessária para os cálculos determinísticos e não deve ser chamada automaticamente.
+Ela oferece páginas separadas de `Insights` e `Classificação`. `Salvar rascunho` não altera o plano; `Aprovar selecionados e atualizar insights` incorpora somente as linhas marcadas, recalcula os insights localmente e abre o plano atualizado. Nunca aprove merchants em nome do usuário. IA externa não é necessária para os cálculos determinísticos e não deve ser chamada automaticamente.
 
 Antes de pedir aprovação, pesquise na internet somente os merchants que permanecerem como `Desconhecido`/`Desconhecida`. Use apenas o descritor público e, quando já conhecida sem expor a fatura, a localização provável; nunca envie valores, datas, banco, cartão ou o conjunto de transações. Priorize páginas oficiais, diretórios de shopping, cadastros públicos e conselhos profissionais. Use categoria nativa e ocorrências somente como contexto local, não como prova de identidade.
 
@@ -58,6 +70,6 @@ python scripts/analyze_expenses.py <consolidado.csv> <diretorio-saida> \
 
 Use os agregados de `analysis_results.json` como única fonte para o dashboard e para a conversa, sempre exibindo o nome amigável. Sem evidência razoável, mantenha nome `Desconhecido`, categoria `Desconhecida` e confidence 0% para o humano decidir. Preserve a base CSV aprovada entre execuções; ela evita reclassificação e funciona igualmente no Claude e no ChatGPT/Codex.
 
-Gere `analise_estrategica_despesas.html` autocontido, sem recursos externos, seguindo `templates/dashboard_template.md`. Entregue também `consolidado_categorizado.csv` e `analysis_results.json`.
+Entregue `analise_estrategica_despesas.html` autocontido, `consolidado_categorizado.csv`, `analysis_results.json`, `consolidation_report.json` e a base de merchants reutilizável. O dashboard deve separar despesas brutas, créditos e total líquido e mostrar ações por fase, recorrências, parcelas e faixas de economia como cenários.
 
 Categorias customizadas usam `categoria,palavras_chave,prioridade`, com palavras-chave separadas por `|`.

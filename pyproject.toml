@@ -12,6 +12,7 @@ authors = [{ name = "OnTimeStack" }]
 dependencies = []
 
 [project.scripts]
+processar-despesas = "expense_skills.cli:process_expenses_main"
 consolidar-faturas = "expense_skills.cli:consolidate_main"
 analisar-despesas = "expense_skills.cli:analyze_main"
 revisar-merchants = "expense_skills.cli:merchant_review_main"

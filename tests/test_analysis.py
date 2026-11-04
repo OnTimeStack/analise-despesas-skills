@@ -68,6 +68,26 @@ class AnalysisTests(unittest.TestCase):
             self.assertEqual(results["overview"]["total_latest"], 100.0)
             self.assertEqual(results["data_quality"]["duplicates_removed"], 1)
 
+    def test_overview_separates_gross_credits_and_net_and_builds_action_plan(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / "consolidado.csv"
+            write_transactions(
+                source,
+                [
+                    row("Jan/2026", "IFOOD", "100.00"),
+                    row("Jan/2026", "ESTORNO IFOOD", "-20.00", tipo="Crédito/Estorno"),
+                ],
+            )
+
+            results = ExpenseAnalyzer(source, output_dir=root / "output").run()
+
+            self.assertEqual(results["overview"]["gross_expenses"], 100.0)
+            self.assertEqual(results["overview"]["credits_total"], 20.0)
+            self.assertEqual(results["overview"]["net_statement_total"], 80.0)
+            self.assertTrue(results["action_plan"])
+            self.assertEqual(results["action_plan"][-1]["title"], "Revisão mensal")
+
     def test_same_transaction_shape_in_different_periods_is_not_a_duplicate(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

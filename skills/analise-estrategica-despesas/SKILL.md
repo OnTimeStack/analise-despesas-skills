@@ -1,6 +1,6 @@
 ---
 name: analise-estrategica-despesas
-description: Enriqueça merchants com revisão humana e base de conhecimento, categorize e analise um consolidado financeiro para identificar concentração, recorrências, parcelamentos, tendências e oportunidades de redução. Use após a consolidação; não use para extrair PDFs ou conciliar faturas.
+description: Processe faturas de ponta a ponta, conciliando cada total antes de enriquecer merchants com pesquisa e revisão humana, categorizar e gerar um plano acionável de redução de despesas. Use para uma ou várias faturas em CSV, OFX ou ZIP e para reabrir uma análise consolidada.
 metadata:
   version: "1.3.0"
 ---
@@ -13,26 +13,36 @@ Gere uma análise acionável em português do Brasil, distinguindo fatos calcula
 
 Ao ser chamada, identifique os itens já presentes e conduza o usuário pelo que estiver faltando; não espere que ele saiba quais arquivos ou metadados enviar.
 
-- Se ainda não houver `consolidado.csv`, peça as faturas/extratos e os totais de cada fatura e siga primeiro a skill `consolidar-faturas`, inclusive sua reconciliação. Não tente analisar diretamente arquivos brutos.
+- Se ainda não houver `consolidado.csv`, peça as faturas/extratos e os totais de cada fatura. O comando unificado abaixo executa a consolidação e a reconciliação antes da análise.
 - Se houver um consolidado, confira também `consolidation_report.json` quando disponível. Uma divergência ou uma fatura sem total esperado deve permanecer visível como limitação da análise.
 - Pergunte se existe `merchant_knowledge_base.csv` de uma execução anterior. Se não existir, informe que uma base vazia será criada; se o ambiente não for persistente, explique que o arquivo gerado deve ser guardado para a próxima execução.
 - Pergunte se há classificações históricas ou categorias customizadas. Elas são opcionais e sua ausência não bloqueia o fluxo.
 - Pergunte por objetivos ou restrições específicos somente se forem relevantes; na ausência deles, faça a análise completa padrão.
 
-Não repita perguntas já respondidas pelos arquivos ou pela conversa. Só inicie a análise depois de ter um consolidado processável e de o usuário ter respondido sobre a existência da base anterior. Antes disso, apresente uma lista curta e concreta das pendências.
+Não repita perguntas já respondidas pelos arquivos ou pela conversa. Antes de executar, apresente uma lista curta e concreta das pendências. A análise deve parar automaticamente se algum total estiver ausente, não verificado ou divergente.
 
 ## Fluxo
 
-1. Prefira a aplicação local com páginas separadas de insights e classificação:
+1. Para arquivos brutos, prefira uma única ação:
+
+   ```bash
+   python scripts/process_expenses.py <entrada-ou-zip> <diretorio-saida> \
+     --expected-totals <totais.csv> [--knowledge-base merchant_knowledge_base.csv] \
+     [--categories categorias.csv] [--open]
+   ```
+
+   O CSV de totais usa `banco,periodo_referencia,total_esperado`. O comando consolida, deduplica, concilia, gera os artefatos analíticos e abre a aplicação local. Se houver divergência, total ausente ou arquivo pendente, deve sair com código 2 e não iniciar a análise. Use `--no-serve` somente em automação ou quando desejar apenas os arquivos.
+
+2. Se o usuário já forneceu um `consolidado.csv` reconciliado, abra diretamente a aplicação local:
 
    ```bash
    python scripts/review_merchants.py serve <consolidado.csv> <diretorio-saida> \
      --knowledge-base <merchant_knowledge_base.csv> [--categories categorias.csv] [--open]
    ```
 
-   A aplicação deve permanecer em `127.0.0.1`. O menu `Insights` apresenta os resultados; `Classificação` contém somente a revisão dos merchants. Ao selecionar `Salvar e atualizar insights`, importe as linhas aprovadas, preserve alterações não aprovadas como rascunho, execute novamente a análise determinística e redirecione para os insights atualizados.
+   A aplicação deve permanecer em `127.0.0.1`. O menu `Insights` apresenta os resultados; `Classificação` contém somente a revisão dos merchants. `Salvar rascunho` preserva edições sem alterar os insights. `Aprovar selecionados e atualizar insights` incorpora somente linhas marcadas como aprovadas, recalcula a análise determinística e redireciona para o plano atualizado. Nunca aprove em nome do usuário.
 
-2. Use o fluxo por arquivos abaixo apenas quando não for possível manter o servidor local. Prepare a revisão dos merchants únicos consultando primeiro a base aprovada:
+3. Use o fluxo por arquivos abaixo apenas quando não for possível manter o servidor local. Prepare a revisão dos merchants únicos consultando primeiro a base aprovada:
 
    ```bash
    python scripts/review_merchants.py prepare <consolidado.csv> <diretorio-saida> \
@@ -48,7 +58,7 @@ Não repita perguntas já respondidas pelos arquivos ou pela conversa. Só inici
 
    Preserve a categoria anterior como sugestão, nunca como nova aprovação automática. Converta `Despesas Diversas` para `Desconhecida`, sinalize divergências entre categorias anteriores e exclua registros puramente contábeis. Use `categoria_nativa` apenas como contexto visível para o revisor.
 
-3. Antes da revisão humana, faça uma pesquisa complementar somente para as linhas que continuarem como `Desconhecido`/`Desconhecida` após a base aprovada, as regras determinísticas e os dados históricos. Quando houver acesso à internet:
+4. Antes da revisão humana, faça uma pesquisa complementar somente para as linhas que continuarem como `Desconhecido`/`Desconhecida` após a base aprovada, as regras determinísticas e os dados históricos. Quando houver acesso à internet:
 
    - pesquise o descritor público do merchant, individualmente ou em pequenos grupos relacionados, usando nome comercial e localização provável quando ela já estiver disponível sem expor a fatura;
    - nunca envie valor, data, banco, cartão, conjunto de transações ou qualquer outro dado financeiro a mecanismos de busca ou serviços externos;
@@ -59,15 +69,15 @@ Não repita perguntas já respondidas pelos arquivos ou pela conversa. Só inici
 
    A pesquisa pública enriquece o rascunho, mas não altera a exigência de aprovação humana. Serviços pagos, medidos ou que exijam transmitir dados financeiros não fazem parte desta etapa implícita.
 
-4. Entregue `merchant_review.html` ao usuário e pare. A aprovação precisa ser humana: não marque itens nem presuma concordância. A página lista somente nomes únicos, em ordem alfabética, e permite ordenar e filtrar todas as colunas, editar nome amigável/categoria e baixar o CSV revisado. Informe quantas sugestões a pesquisa resolveu, quais permaneceram desconhecidas e as principais fontes utilizadas.
-5. Depois que o usuário devolver o CSV baixado, importe somente as linhas explicitamente aprovadas:
+5. Entregue `merchant_review.html` ao usuário e pare quando estiver usando o fluxo por arquivos. A aprovação precisa ser humana: não marque itens nem presuma concordância. A página lista somente nomes únicos, em ordem alfabética, e permite ordenar e filtrar todas as colunas, editar nome amigável/categoria e baixar o CSV revisado. Informe quantas sugestões a pesquisa resolveu, quais permaneceram desconhecidas e as principais fontes utilizadas.
+6. Depois que o usuário devolver o CSV baixado, importe somente as linhas explicitamente aprovadas:
 
    ```bash
    python scripts/review_merchants.py approve <merchant_review_approved.csv> \
      --knowledge-base <merchant_knowledge_base.csv>
    ```
 
-6. Execute a análise exigindo que todos os merchants estejam aprovados:
+7. Execute a análise exigindo que todos os merchants estejam aprovados:
 
    ```bash
    python scripts/analyze_expenses.py <consolidado.csv> <diretorio-saida> \
@@ -75,9 +85,9 @@ Não repita perguntas já respondidas pelos arquivos ou pela conversa. Só inici
      [--categories categorias.csv] [--reclassify]
    ```
 
-7. Leia `analysis_results.json`. Use exclusivamente seus agregados para totais, percentuais, compromissos futuros e faixas de economia. Nomes exibidos em relatórios e insights devem ser os nomes amigáveis.
-8. Verifique `data_quality` antes de interpretar tendências. Com menos de três períodos, descreva tendências como evidência limitada. Se mais de 10% das despesas estiverem em `Desconhecida`, destaque a necessidade de revisão.
-9. Gere um dashboard HTML autocontido seguindo `references/dashboard.md`, sem bibliotecas, fontes ou chamadas externas. Entregue também `consolidado_categorizado.csv` e `analysis_results.json`.
+8. Leia `analysis_results.json`. Use exclusivamente seus agregados para totais, percentuais, compromissos futuros e faixas de economia. Nomes exibidos em relatórios e insights devem ser os nomes amigáveis.
+9. Verifique `data_quality` antes de interpretar tendências. Com menos de três períodos, descreva tendências como evidência limitada. Se mais de 10% das despesas estiverem em `Desconhecida`, destaque a necessidade de revisão.
+10. Entregue o dashboard autocontido `analise_estrategica_despesas.html`, seguindo `references/dashboard.md`, além de `consolidado_categorizado.csv`, `analysis_results.json`, `consolidation_report.json` e a base de merchants reutilizável.
 
 ## Segurança da classificação
 

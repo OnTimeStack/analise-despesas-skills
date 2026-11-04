@@ -512,7 +512,8 @@ def render_review_html(
         else '<nav class="topnav"><span class="active">Classificação</span></nav>'
     )
     save_button = (
-        '<button id="save-review" class="primary">Salvar e atualizar insights</button>'
+        '<button id="save-draft">Salvar rascunho</button>'
+        '<button id="approve-review" class="primary">Aprovar selecionados e atualizar insights</button>'
         if app_mode
         else ""
     )
@@ -693,7 +694,7 @@ REVIEW_HTML = r"""<!doctype html>
 <body>
   __NAVIGATION__
   <h1>Revisão humana de merchants</h1>
-  <p>Revise somente os nomes únicos. Edite nome amigável e categoria, marque os itens aprovados e baixe o CSV. Depois importe o arquivo na base de conhecimento. Itens desconhecidos podem ser aprovados explicitamente como desconhecidos.</p>
+  <p>Revise somente os nomes únicos. As edições são rascunhos até você marcar os itens conferidos como aprovados. Salvar rascunho não altera os insights; aprovar os selecionados incorpora essas linhas à base e recalcula o plano. Itens desconhecidos podem ser aprovados explicitamente como desconhecidos.</p>
   <div class="toolbar">
     <button id="approve-visible">Aprovar visíveis</button>
     <button id="clear-visible">Desmarcar visíveis</button>
@@ -796,24 +797,41 @@ REVIEW_HTML = r"""<!doctype html>
       const csv = [fields.join(","), ...rows.sort((a,b) => a.nome_original.localeCompare(b.nome_original, "pt-BR")).map(row => fields.map(field => csvEscape(row[field])).join(","))].join("\n");
       const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], {type: "text/csv;charset=utf-8"})); link.download = "merchant_review_approved.csv"; link.click(); URL.revokeObjectURL(link.href);
     });
-    const saveButton = document.querySelector("#save-review");
-    if (saveButton) saveButton.addEventListener("click", async () => {
+    async function submitReview(mode) {
+      const saveButton = mode === "approve" ? document.querySelector("#approve-review") : document.querySelector("#save-draft");
       const status = document.querySelector("#save-status");
-      saveButton.disabled = true; status.textContent = "Salvando e recalculando insights…";
+      const approvedCount = rows.filter(row => row.aprovado === "sim").length;
+      if (mode === "approve" && approvedCount === 0) {
+        status.textContent = "Marque ao menos um merchant conferido antes de atualizar os insights.";
+        return;
+      }
+      saveButton.disabled = true;
+      status.textContent = mode === "approve"
+        ? "Aprovando e recalculando insights…"
+        : "Salvando rascunho…";
       try {
         const response = await fetch(saveEndpoint, {
           method: "POST",
           headers: {"Content-Type": "application/json", "X-Review-Token": reviewToken},
-          body: JSON.stringify({rows})
+          body: JSON.stringify({rows, mode})
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "Não foi possível salvar a revisão");
-        localStorage.removeItem(storageKey);
-        window.location.assign(result.insights_url || "/insights");
+        status.textContent = result.message || "Revisão salva.";
+        if (mode === "approve") {
+          localStorage.removeItem(storageKey);
+          window.location.assign(result.next_url || "/insights");
+        } else {
+          saveButton.disabled = false;
+        }
       } catch (error) {
         status.textContent = error.message; saveButton.disabled = false;
       }
-    });
+    }
+    const draftButton = document.querySelector("#save-draft");
+    const approveButton = document.querySelector("#approve-review");
+    if (draftButton) draftButton.addEventListener("click", () => submitReview("draft"));
+    if (approveButton) approveButton.addEventListener("click", () => submitReview("approve"));
     render();
   </script>
 </body>

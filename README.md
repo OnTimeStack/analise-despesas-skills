@@ -1,11 +1,11 @@
 # Análise de despesas — skills e núcleo compartilhado
 
-Plugin reutilizável para ChatGPT, Codex e agentes compatíveis com Agent Skills. O fluxo separa integridade de extração e conciliação da interpretação estratégica:
+Plugin reutilizável para ChatGPT, Codex e agentes compatíveis com Agent Skills. Para o usuário, o fluxo recomendado é uma ação única; internamente, ele preserva a separação entre integridade de extração, conciliação e interpretação estratégica:
 
 Versão atual do bundle de skills e do pacote Python: **1.3.0**.
 
 ```text
-CSV / OFX / ZIP ──► consolidar-faturas ──► consolidado.csv
+CSV / OFX / ZIP ──► processar-despesas ──► consolidação + conciliação
 PDF / imagem ──► extração assistida ─────┘        │
                                                     ▼
                                   revisão de merchants
@@ -30,6 +30,9 @@ PDF / imagem ──► extração assistida ─────┘        │
 - O dashboard não depende de fontes ou bibliotecas externas.
 - Merchants são revisados uma única vez por nome original e reutilizados por uma base de conhecimento portátil.
 - Sugestões inseguras falham para `Desconhecido`/`Desconhecida`, evitando falsos positivos.
+- O comando `processar-despesas` consolida, concilia, prepara a revisão e gera o painel em uma única execução.
+- Rascunho e aprovação são ações distintas: só aprovações explícitas atualizam os insights.
+- O dashboard separa despesas brutas, créditos e total líquido e recupera o plano por fases, recorrências e cronograma de parcelas.
 
 ## Arquitetura
 
@@ -67,7 +70,17 @@ Para desenvolvimento local:
 uv sync
 ```
 
-Depois disso, use os scripts das skills mostrados abaixo ou os comandos instalados `consolidar-faturas`, `revisar-merchants` e `analisar-despesas`. Os wrappers não possuem regras próprias: todos chamam o mesmo núcleo, evitando divergência entre agentes.
+Depois disso, use os scripts das skills mostrados abaixo ou o comando instalado `processar-despesas`. Os comandos especializados `consolidar-faturas`, `revisar-merchants` e `analisar-despesas` continuam disponíveis para manutenção e casos parciais. Os wrappers não possuem regras próprias: todos chamam o mesmo núcleo, evitando divergência entre agentes.
+
+## Fluxo recomendado em uma ação
+
+```bash
+python skills/analise-estrategica-despesas/scripts/process_expenses.py \
+  entrada output --expected-totals totais.csv \
+  --knowledge-base merchant_knowledge_base.csv --open
+```
+
+O comando aceita arquivo, ZIP ou diretório. Ele consolida e concilia cada `banco + período`; somente quando todas as reconciliações estão válidas ele gera `analysis_results.json`, `merchant_review.html`, `analise_estrategica_despesas.html` e inicia a aplicação local. Total ausente, divergência ou arquivo pendente encerra o fluxo com código 2 antes da análise. Para automação, `--no-serve` gera os artefatos sem manter o servidor.
 
 ### Comportamento esperado no chat
 
@@ -136,9 +149,10 @@ python skills/analise-estrategica-despesas/scripts/review_merchants.py serve \
 
 A aplicação fica disponível apenas em `127.0.0.1`:
 
-- `Insights`: visão atualizada de totais, categorias, prioridades, maiores despesas e recorrências;
+- `Insights`: despesas brutas, créditos, total líquido, qualidade, categorias, plano por fases, recorrências, parcelas e cenários de economia;
 - `Classificação`: tabela editável e filtrável de merchants únicos;
-- `Salvar e atualizar insights`: importa aprovações, mantém alterações pendentes em `merchant_review_draft.csv`, recalcula `analysis_results.json` e volta para os insights atualizados.
+- `Salvar rascunho`: preserva as edições em `merchant_review_draft.csv` sem mudar os insights;
+- `Aprovar selecionados e atualizar insights`: incorpora somente as linhas marcadas, recalcula `analysis_results.json` e volta para o plano atualizado.
 
 Esse processamento é local e determinístico. Nenhuma chamada de IA é necessária para atualizar as métricas. Uma nova narrativa gerada por IA pode ser produzida separadamente quando solicitada, sujeita aos controles de custo aplicáveis.
 
@@ -206,7 +220,7 @@ O formato é `categoria,palavras_chave,prioridade`, com palavras-chave separadas
 
 - `analysis_results.json`: métricas, qualidade, cenários e insights estruturados;
 - `consolidado_categorizado.csv`: transações categorizadas, com nome amigável, confidence, aprovação e origem da classificação;
-- `analise_estrategica_despesas.html`: produzido pelo agente exclusivamente a partir dos agregados JSON.
+- `analise_estrategica_despesas.html`: painel autocontido produzido exclusivamente a partir dos agregados JSON.
 
 Relatórios, rankings, recorrências e insights usam o nome amigável. O nome original permanece no CSV e nos campos de auditoria do JSON.
 
