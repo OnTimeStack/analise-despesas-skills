@@ -1,18 +1,16 @@
-Alimentação em Geral,"Supermercado, açougue, feiras"
-Animais de Estimação,"Pet shop, alimentação, cuidados veterinários"
-Atividades Físicas,"Academia, esportes, aulas de dança, pilates etc."
-Casa e Utilidades,"Utensílios domésticos, móveis, eletrodomésticos"
-Comunicação e Conectividade,"Telefone, celular, internet, TV a cabo"
-Despesas Diversas,Outras despesas sem categoria específica ou esporádicas
-Doações e Presentes,"Doações, dízimos e presentes para pessoas ou instituições"
-Educação e Cursos,"Mensalidades, livros, materiais escolares, cursos extracurriculares"
-Investimentos e Poupança,"Aplicações financeiras, aportes e reservas de valor"
-Lazer e Entretenimento,"Cinema, passeios, viagens, hobbies"
-Mobilidade e Transporte,"Combustível, estacionamento, transporte público, manutenção de veículos"
-Pagamentos e Créditos,Pagamentos de fatura e estorno de pagamentos
-Restaurante e Lanchonete,"Restaurantes, lanchonetes, delivery"
-Saúde e Bem-Estar,"Farmácia, consultas, exames, plano de saúde"
-Seguros em Geral,"Carro, casa, vida, saúde complementar"
-Serviços Recorrentes,"Assinaturas de serviços: streaming, softwares, clubes etc."
-Tributos e Encargos,"Impostos, taxas, multas, contribuições"
-Vestuário e Cuidados Pessoais,"Roupas, calçados, beleza, estética, salão de beleza"
+categoria,palavras_chave,prioridade
+Serviços Recorrentes,netflix|spotify|amazon prime|assinatura|openai|figma|adobe|linkedin,10
+Restaurante e Lanchonete,ifood|uber eats|restaurante|pizzaria|lanchonete|delivery,20
+Saúde e Bem-Estar,farmacia|drogaria|consulta|medico|exame|hospital|clinica,30
+Mobilidade e Transporte,uber|taxi|combustivel|gasolina|estacionamento|parking,40
+Educação e Cursos,escola|universidade|curso|livro|livraria,50
+Alimentação em Geral,supermercado|mercado|feira|atacadao|hortifruti,60
+Animais de Estimação,cobasi|petshop|pet shop|veterinario,70
+Atividades Físicas,academia|decathlon|centauro|pilates|yoga|crossfit,80
+Casa e Utilidades,havan|eletrodomestico|mobiliario|shopee|lavanderia,90
+Doações e Presentes,doacao|dizimo|presente|boticario,100
+Vestuário e Cuidados Pessoais,roupa|beleza|salao|barbearia|renner,110
+Comunicação e Conectividade,telefone|celular|internet|vivo|claro|tim,120
+Lazer e Entretenimento,cinema|viagem|hotel|airbnb|parque|amazon marketplace|mercadolivre,130
+Seguros em Geral,seguro|seguradora,140
+Investimentos e Poupança,investimento|aplicacao|aporte,150

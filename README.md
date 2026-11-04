@@ -1,92 +1,227 @@
-# analise-despesas-skills
+# Análise de despesas — skills e núcleo compartilhado
 
-Skills para agentes (Cursor, Claude, etc.) que tratam de **extrato e faturas de cartão** no Brasil: primeiro **consolidar** transações de várias fontes com rastreio e reconciliação; depois **analisar** gastos com categorização, priorização (esforço × impacto) e um **dashboard HTML** acionável.
+Plugin reutilizável para ChatGPT, Codex e agentes compatíveis com Agent Skills. O fluxo separa integridade de extração e conciliação da interpretação estratégica:
 
-## Fluxo recomendado
-
-```text
-ZIP com PDF / OFX / CSV / imagens
-        │
-        ▼
-  consolidar-faturas
-        │
-        ├─ consolidado.csv          (transações unificadas; coluna categoria vazia)
-        ├─ padronizado.zip          (um CSV padronizado por origem)
-        └─ consolidation_summary.log
-        │
-        ▼
-analise-estrategica-despesas
-        │
-        ├─ analise_estrategica_despesas.html
-        ├─ consolidado_categorizado.csv
-        └─ analysis_results.json
-```
-
-O desenho separa **integridade de extração** (consolidação) da **qualidade analítica da categorização** (análise estratégica). A coluna `categoria` fica vazia na saída da primeira skill de propósito; a segunda skill preenche e gera métricas e recomendações.
-
----
-
-## `consolidar-faturas`
-
-**Função:** processar faturas e extratos de **qualquer banco** e **várias origens** — detectar formato, extrair linhas de transação, padronizar, classificar sinais (débito/crédito), **reconciliar totais** com o documento (com modo seguro de pedir confirmação ao usuário se não bater) e **consolidar** tudo em um único arquivo.
-
-**Formatos de entrada:** PDF, OFX, CSV, imagens (JPEG/PNG/WEBP), em geral entregues em um **ZIP**.
-
-**O que não faz:** **não categoriza** despesas para análise estratégica. A coluna `categoria` em `consolidado.csv` sai **vazia** para a skill seguinte tratar com regras e dicionário próprios.
-
-**Principais saídas:**
-
-| Arquivo | Descrição |
-|--------|-----------|
-| `consolidado.csv` | Todas as transações com colunas padronizadas (`banco`, `periodo_referencia`, `data_transacao`, `cartao`, `descricao`, `parcela`, `valor`, `tipo`, `categoria`, `categoria_nativa`) |
-| `padronizado.zip` | CSVs por origem (`faturas_[origem].csv`) |
-| `consolidation_summary.log` | Reconciliação, totais, estatísticas |
-
-**Script:** `consolidar-faturas/scripts/consolidate_invoices.py` — normalização de banco, deduplicação (incluindo `parcela`), normalização de valores (BR/internacional), resumo mensal e log.
-
-**Instruções completas:** [consolidar-faturas/SKILL.md](consolidar-faturas/SKILL.md) (workflow, regras por formato, PDF em duas colunas, fórmulas de reconciliação por tipo de banco).
-
-**Quando usar (resumo):** faturas, extratos, consolidar transações, OFX, ZIP com arquivos financeiros, validar totais, padronizar dados por banco — antes de qualquer análise de “onde cortar”.
-
----
-
-## `analise-estrategica-despesas`
-
-**Função:** receber o **`consolidado.csv`** produzido por `consolidar-faturas` (com `categoria` vazia), **categorizar** todas as transações (regras em `references/categorization_rules.md`), **calcular métricas** e produzir **análise estratégica** com plano de ação em fases (cortes imediatos → contenção → otimização → revisão), priorizando **economia por esforço** (ex.: assinaturas primeiro).
-
-**Entrada principal:** `consolidado.csv`. Opcional: `categorias_evolucao.csv` legado como apoio de tendência; a categorização principal deve partir do consolidado.
-
-**Principais saídas:**
-
-| Arquivo | Descrição |
-|--------|-----------|
-| `analise_estrategica_despesas.html` | Dashboard HTML autocontido (números agregados devem vir de `analysis_results.json`, não recalculados à mão a partir do CSV cru) |
-| `consolidado_categorizado.csv` | Mesmo consolidado com `categoria` preenchida |
-| `analysis_results.json` | Métricas para o dashboard e referência |
-
-**Script:** `analise-estrategica-despesas/scripts/analyze_expenses.py` — categorização + extração de métricas.
-
-**Instruções completas:** [analise-estrategica-despesas/SKILL.md](analise-estrategica-despesas/SKILL.md) (framework de análise, template do dashboard, tom em português (BR), limites: não é assessoria de investimento).
-
-**Quando usar (resumo):** após ter `consolidado.csv`; pedidos de análise de despesas, redução de gastos, plano financeiro, “o que cortar primeiro”, insights e dashboard visual.
-
----
-
-## Estrutura do repositório
+Versão atual do bundle de skills e do pacote Python: **1.2.0**.
 
 ```text
-analise-despesas-skills/
-├── README.md
-├── consolidar-faturas/
-│   ├── SKILL.md
-│   ├── scripts/consolidate_invoices.py
-│   ├── references/llm_prompt.md, format_specifications.md
-│   └── templates/output_schema.csv
-└── analise-estrategica-despesas/
-    ├── SKILL.md
-    ├── scripts/analyze_expenses.py
-    ├── references/categorization_rules.md, analysis_framework.md
-    └── templates/categorias_default.csv, dashboard_template.md
+CSV / OFX / ZIP ──► consolidar-faturas ──► consolidado.csv
+PDF / imagem ──► extração assistida ─────┘        │
+                                                    ▼
+                                  revisão de merchants
+                                  humano + base CSV
+                                                    │
+                                                    ▼
+                               analise-estrategica-despesas
+                                                    │
+                              JSON + CSV categorizado + dashboard
 ```
 
-Para configurar cada skill no agente, use o frontmatter `name` e `description` de cada `SKILL.md` — eles já descrevem gatilhos e escopo para o roteador do modelo.
+## O que mudou
+
+- Um único núcleo em `src/expense_skills` atende as skills legadas e o plugin ChatGPT/Codex.
+- Valores monetários inválidos interrompem o processamento; não viram zero silenciosamente.
+- Duplicatas são removidas por chave contábil e reportadas.
+- `Saldo Anterior`, pagamentos e créditos não entram como despesa do período.
+- Categorias customizadas são realmente carregadas.
+- Parcelas de bancos ausentes no mês mais recente são avançadas pelo tempo decorrido.
+- Tendências informam a janela e a qualidade dos dados.
+- PDFs e imagens nunca geram transações por diferença matemática; extrações incompletas exigem confirmação.
+- O dashboard não depende de fontes ou bibliotecas externas.
+- Merchants são revisados uma única vez por nome original e reutilizados por uma base de conhecimento portátil.
+- Sugestões inseguras falham para `Desconhecido`/`Desconhecida`, evitando falsos positivos.
+
+## Arquitetura
+
+```text
+plugin.json                         manifesto portátil ChatGPT/Codex
+skills/                             skills canônicas do plugin
+src/expense_skills/
+├── models.py                       entidades e invariantes financeiros
+├── parsing.py                      dinheiro, datas, períodos e parcelas
+├── categorization.py               regras padrão e customizadas
+├── merchants.py                    enriquecimento, revisão HTML e base aprovada
+├── consolidation.py               ingestão, reconciliação e saídas
+├── analysis.py                     métricas, qualidade e insights
+└── cli.py                          adaptadores de linha de comando
+consolidar-faturas/                 entrada legada compatível
+analise-estrategica-despesas/       entrada legada compatível
+tests/                              testes locais sem dependências externas
+```
+
+O núcleo usa apenas a biblioteca padrão do Python. CSV e OFX são processados deterministicamente. PDF e imagem exigem leitura assistida pelo agente e conversão para o esquema padronizado.
+
+## Instalação e pontos de entrada
+
+O repositório oferece três formas equivalentes de uso:
+
+| Ambiente | Entrada | Implementação compartilhada |
+|---|---|---|
+| ChatGPT/Codex e Agent Skills | `plugin.json` e `skills/` | `src/expense_skills/` |
+| Claude e instalações anteriores | `consolidar-faturas/` e `analise-estrategica-despesas/` | `src/expense_skills/` |
+| Terminal/Python | comandos definidos em `pyproject.toml` | `src/expense_skills/` |
+
+Para desenvolvimento local:
+
+```bash
+uv sync
+```
+
+Depois disso, use os scripts das skills mostrados abaixo ou os comandos instalados `consolidar-faturas`, `revisar-merchants` e `analisar-despesas`. Os wrappers não possuem regras próprias: todos chamam o mesmo núcleo, evitando divergência entre agentes.
+
+### Comportamento esperado no chat
+
+O usuário pode simplesmente pedir uma análise de despesas. A skill deve então:
+
+1. inventariar anexos e informações já fornecidas;
+2. explicar, em linguagem simples, o que ainda precisa ser enviado;
+3. pedir o total de cada fatura ou uma declaração explícita de que ele não está disponível;
+4. perguntar se existe uma base de merchants anterior;
+5. consolidar e reconciliar antes de iniciar a análise;
+6. abrir a revisão humana dos merchants e, após a aprovação, atualizar os insights localmente.
+
+O agente não deve responder apenas com nomes técnicos de arquivos. Quando o usuário não tiver uma base anterior ou categorias próprias, ele deve explicar que esses itens são opcionais e seguir com uma base vazia e as categorias padrão.
+
+## Triagem guiada ao iniciar
+
+Quando uma das skills é chamada, ela primeiro inventaria o que já foi anexado e solicita somente as informações ausentes. O usuário recebe um checklist simples, sem precisar conhecer previamente o pipeline:
+
+- arquivos de todas as faturas ou extratos;
+- `arquivo | banco/cartão | período | total` para cada fatura;
+- confirmação explícita quando um total não estiver disponível;
+- base de merchants anterior, classificações históricas ou categorias próprias, quando existirem.
+
+Banco, período e moeda são solicitados apenas quando não puderem ser identificados com segurança no documento. Classificações e categorias anteriores são opcionais. A consolidação exige ao menos um arquivo processável e registra como não verificada qualquer fatura cujo total tenha sido declarado indisponível; a análise só começa depois que houver um consolidado processável e uma resposta sobre a existência da base anterior.
+
+## Consolidação
+
+```bash
+python skills/consolidar-faturas/scripts/consolidate_invoices.py entrada output
+```
+
+Com totais explícitos:
+
+```bash
+python skills/consolidar-faturas/scripts/consolidate_invoices.py \
+  entrada output --expected-totals totais.csv
+```
+
+`totais.csv`:
+
+```csv
+banco,periodo_referencia,total_esperado
+Banco Exemplo,Jan/2026,1234.56
+```
+
+Saídas:
+
+- `consolidado.csv`
+- `padronizado.zip`
+- `consolidation_report.json`
+- `consolidation_summary.log`
+
+Código de saída 2 ou `requer_confirmacao=true` significa divergência, arquivo não processado ou erro de validação. Artefatos parciais não devem ser apresentados como reconciliação concluída.
+
+## Revisão humana de merchants
+
+### Aplicação local
+
+O fluxo recomendado mantém insights e classificação em páginas separadas:
+
+```bash
+python skills/analise-estrategica-despesas/scripts/review_merchants.py serve \
+  output/consolidado.csv analysis-output \
+  --knowledge-base merchant_knowledge_base.csv --open
+```
+
+A aplicação fica disponível apenas em `127.0.0.1`:
+
+- `Insights`: visão atualizada de totais, categorias, prioridades, maiores despesas e recorrências;
+- `Classificação`: tabela editável e filtrável de merchants únicos;
+- `Salvar e atualizar insights`: importa aprovações, mantém alterações pendentes em `merchant_review_draft.csv`, recalcula `analysis_results.json` e volta para os insights atualizados.
+
+Esse processamento é local e determinístico. Nenhuma chamada de IA é necessária para atualizar as métricas. Uma nova narrativa gerada por IA pode ser produzida separadamente quando solicitada, sujeita aos controles de custo aplicáveis.
+
+### Fluxo por arquivos
+
+Prepare a revisão usando a base existente, mesmo que ela ainda não exista:
+
+```bash
+python skills/analise-estrategica-despesas/scripts/review_merchants.py prepare \
+  output/consolidado.csv merchant-review \
+  --knowledge-base merchant_knowledge_base.csv
+```
+
+Abra `merchant-review/merchant_review.html`. A tela autocontida apresenta somente merchants únicos, ordenados alfabeticamente, e permite:
+
+- ordenar e filtrar por qualquer coluna;
+- comparar nome original, nome amigável, confidence, categoria, origem e ocorrências;
+- editar nome amigável e categoria;
+- aprovar itens individualmente ou em lote e baixar `merchant_review_approved.csv`.
+
+Importe somente depois da revisão humana:
+
+```bash
+python skills/analise-estrategica-despesas/scripts/review_merchants.py approve \
+  merchant_review_approved.csv --knowledge-base merchant_knowledge_base.csv
+```
+
+Somente linhas marcadas como aprovadas entram na base. Elas passam a ter confidence 100% e são reutilizadas sem nova classificação. Se não houver evidência razoável, a sugestão fica como nome `Desconhecido`, categoria `Desconhecida` e confidence 0%, para evitar falsos positivos.
+
+Classificações anteriores em `descricao,categoria[,categoria_nativa]` podem alimentar a mesma revisão:
+
+```bash
+python skills/analise-estrategica-despesas/scripts/review_merchants.py import-legacy \
+  classificacoes-anteriores.csv merchant-review \
+  --knowledge-base merchant_knowledge_base.csv
+```
+
+O importador agrupa descrições únicas, preserva categorias anteriores como sugestões, mostra categorias nativas como contexto, converte `Despesas Diversas` para `Desconhecida`, sinaliza conflitos e exclui pagamentos/encargos puramente contábeis. Nenhuma linha legada é aprovada automaticamente.
+
+## Análise estratégica
+
+```bash
+python skills/analise-estrategica-despesas/scripts/analyze_expenses.py \
+  output/consolidado.csv analysis-output \
+  --merchant-kb merchant_knowledge_base.csv --require-reviewed
+```
+
+Categorias customizadas:
+
+```bash
+python skills/analise-estrategica-despesas/scripts/analyze_expenses.py \
+  output/consolidado.csv analysis-output --categories categorias.csv \
+  --merchant-kb merchant_knowledge_base.csv --require-reviewed
+```
+
+O formato é `categoria,palavras_chave,prioridade`, com palavras-chave separadas por `|`. A análise gera:
+
+- `analysis_results.json`: métricas, qualidade, cenários e insights estruturados;
+- `consolidado_categorizado.csv`: transações categorizadas, com nome amigável, confidence, aprovação e origem da classificação;
+- `analise_estrategica_despesas.html`: produzido pelo agente exclusivamente a partir dos agregados JSON.
+
+Relatórios, rankings, recorrências e insights usam o nome amigável. O nome original permanece no CSV e nos campos de auditoria do JSON.
+
+### Portabilidade da base
+
+`merchant_knowledge_base.csv` é a fonte compartilhada entre Claude, ChatGPT e Codex; não depende da memória de um provedor. Em execução local, mantenha o arquivo no workspace. Em um chat sem armazenamento persistente, guarde-o fora da conversa e anexe-o novamente na próxima análise. Isso também torna o histórico auditável e evita gastar tokens reclassificando merchants conhecidos.
+
+## Testes
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m unittest discover -s tests -v
+```
+
+Os testes não fazem chamadas de rede nem usam serviços pagos.
+
+## Harnesses para agentes
+
+- `AGENTS.md` é o contrato canônico para Codex e agentes compatíveis: arquitetura, invariantes financeiros, privacidade, custos e matriz de validação.
+- `CLAUDE.md` adiciona as particularidades de execução do Claude e referencia o contrato canônico.
+- As instruções funcionais consumidas em runtime permanecem nos arquivos `SKILL.md`; os harnesses orientam quem modifica o repositório.
+
+Ao alterar o fluxo, mantenha sincronizadas as skills canônicas em `skills/` e as entradas legadas. Ao alterar regras de negócio, modifique `src/expense_skills/` e adicione ou ajuste testes em `tests/`.
+
+## Privacidade e segurança
+
+O código não envia dados financeiros para serviços externos. Logs agregam contagens, totais e status, evitando repetir descrições de transações. Antes de compartilhar artefatos, revise nomes, finais de cartão e estabelecimentos que possam identificar o titular.

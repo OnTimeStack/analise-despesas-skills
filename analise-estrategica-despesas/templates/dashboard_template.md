@@ -4,6 +4,8 @@
 
 **All numerical values in the dashboard MUST come exclusively from `analysis_results.json`.** The LLM generating the HTML must NOT recompute totals, installment futures, savings estimates, or any other metric by re-reading the consolidado.csv. The script `analyze_expenses.py` already performs all calculations with proper deduplication and edge-case handling. Recomputing leads to double-counting errors (e.g., installments counted once per period instead of once per unique parcela).
 
+Display the approved friendly merchant name from the JSON in rankings, recurring charges and installment tables. Keep the original statement description only as secondary audit context when needed.
+
 Specifically:
 - **Total expenses** → `results.overview.total_latest` (latest period) or compute average from `results.overview.all_periods`
 - **Installment future commitment** → `results.installments.total_comprometido_futuro` (already deduplicated)
@@ -22,9 +24,9 @@ Dark theme, data-dense, professional. Think Bloomberg terminal meets modern fint
 
 ## Typography
 
-- **Headings & Numbers**: Use a monospace font for financial data — `Space Mono` from Google Fonts gives a technical, precise feel
+- **Headings & Numbers**: Use a local monospace stack for financial data (`ui-monospace`, `SFMono-Regular`, `Consolas`, monospace)
 - **Body text**: `DM Sans` — clean, readable, warm
-- **Import**: `https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap`
+- **Fonts**: use system font stacks only; the dashboard must not make network requests
 
 ## Color Palette (CSS Variables)
 

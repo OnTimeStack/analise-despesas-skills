@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "analise-despesas-skills"
+version = "1.2.0"
+description = "Shared deterministic core for invoice consolidation and strategic expense analysis skills."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "OnTimeStack" }]
+dependencies = []
+
+[project.scripts]
+consolidar-faturas = "expense_skills.cli:consolidate_main"
+analisar-despesas = "expense_skills.cli:analyze_main"
+revisar-merchants = "expense_skills.cli:merchant_review_main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/scripts/*.py" = ["E402"]
+"src/expense_skills/merchants.py" = ["E501"]
+"src/expense_skills/webapp.py" = ["E501"]
+

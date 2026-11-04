@@ -1,5 +1,18 @@
 # CLAUDE.md
 
+Read and follow `AGENTS.md` in full. It is the canonical project contract for architecture, financial invariants, privacy, cost controls, validation, and delivery.
+
+## Project-specific guidance
+
+- The legacy skills in `consolidar-faturas/` and `analise-estrategica-despesas/` remain supported Claude entry points. Keep their functional instructions aligned with the canonical skills in `skills/`.
+- Implement shared behavior only in `src/expense_skills/`; skill scripts must remain thin adapters.
+- When an analysis request lacks inputs, follow the skill intake: explain what to attach, request each invoice total, and do not repeat information already present in the conversation or files.
+- Stop for human merchant review when approval is required. Never approve classifications on the user's behalf.
+- Prefer local deterministic tools. Do not implicitly send financial documents to external models, OCR services, or APIs.
+- Run the validation matrix in `AGENTS.md` before delivering a change and report any step that could not be executed.
+
+The general engineering guidelines below still apply when they do not conflict with `AGENTS.md`.
+
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.

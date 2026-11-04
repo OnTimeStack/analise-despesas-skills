@@ -1,3 +1,26 @@
 # macOS
 .DS_Store
 **/.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+dist/
+build/
+*.egg-info/
+.venv/
+
+# Local processing outputs
+output/
+outputs/
+padronizado/
+merchant_knowledge_base.csv
+merchant_review_draft.csv
+merchant_review_approved.csv
+consolidado.csv
+consolidado_categorizado.csv
+analysis_results.json
+consolidation_report.json
+consolidation_summary.log
