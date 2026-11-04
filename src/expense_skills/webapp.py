@@ -105,7 +105,7 @@ class ExpenseReviewApplication:
             incoming = submitted[decision.merchant_key]
             friendly = str(incoming.get("nome_amigavel") or "").strip()
             category = str(incoming.get("categoria") or "").strip()
-            approved = _approved(incoming.get("aprovado"))
+            approved = mode == "approve" or _approved(incoming.get("aprovado"))
             if len(friendly) > 160 or len(category) > 120:
                 raise ValueError("nome amigável ou categoria excede o limite permitido")
             if approved and (not friendly or not category):
@@ -122,11 +122,6 @@ class ExpenseReviewApplication:
 
         _write_rows_atomic(self.draft_path, safe_rows)
         knowledge_base = MerchantKnowledgeBase.load(self.knowledge_base_path)
-        selected_count = sum(1 for row in safe_rows if _approved(row.get("aprovado")))
-        if mode == "approve" and selected_count == 0:
-            raise ValueError(
-                "nenhum merchant foi aprovado; marque os itens conferidos ou salve como rascunho"
-            )
         if mode == "approve":
             approved_count, pending_count = knowledge_base.merge_review(self.draft_path)
         else:
@@ -142,7 +137,8 @@ class ExpenseReviewApplication:
             "ai_reprocessing_required": False,
             "next_url": "/insights" if mode == "approve" else "/classification",
             "message": (
-                f"{approved_count} merchant(s) incorporado(s); insights recalculados."
+                f"Revisão aprovada: {approved_count} merchant(s) incorporado(s); "
+                "insights recalculados."
                 if mode == "approve"
                 else "Rascunho salvo; nenhuma classificação foi incorporada aos insights."
             ),

@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import html
 import json
+import os
 import re
 from collections import defaultdict
 from dataclasses import dataclass
@@ -253,7 +254,7 @@ class MerchantKnowledgeBase:
         return approved_count, pending_count
 
     def save(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         temporary = self.path.with_suffix(f"{self.path.suffix}.tmp")
         with temporary.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=KNOWLEDGE_FIELDS, lineterminator="\n")
@@ -272,6 +273,14 @@ class MerchantKnowledgeBase:
                     }
                 )
         temporary.replace(self.path)
+        self.path.chmod(0o600)
+
+
+def default_knowledge_base_path() -> Path:
+    """Return the persistent, local-only state path shared by skill runs."""
+    configured_root = os.environ.get("ANALISE_DESPESAS_STATE_DIR")
+    root = Path(configured_root).expanduser() if configured_root else Path.home() / ".local/share"
+    return root / "analise-despesas-skills" / "merchant_knowledge_base.csv"
 
 
 class MerchantEnricher:
@@ -511,17 +520,17 @@ def render_review_html(
         if app_mode
         else '<nav class="topnav"><span class="active">Classificação</span></nav>'
     )
-    save_button = (
-        '<button id="save-draft">Salvar rascunho</button>'
-        '<button id="approve-review" class="primary">Aprovar selecionados e atualizar insights</button>'
+    review_action = (
+        '<button id="download">Baixar revisão CSV</button>'
+        '<button id="approve-review" class="primary">Aprovar revisão</button>'
         if app_mode
-        else ""
+        else '<button id="download" class="primary">Baixar revisão CSV</button>'
     )
     return (
         REVIEW_HTML.replace("__MERCHANT_DATA__", payload)
         .replace("__CATEGORY_OPTIONS__", category_options)
         .replace("__NAVIGATION__", navigation)
-        .replace("__SAVE_BUTTON__", save_button)
+        .replace("__REVIEW_ACTION__", review_action)
         .replace("__SAVE_ENDPOINT__", json.dumps("/api/review" if app_mode else None))
         .replace("__REVIEW_TOKEN__", json.dumps(review_token))
     )
@@ -667,7 +676,7 @@ REVIEW_HTML = r"""<!doctype html>
     button { border: 1px solid #475569; border-radius: .45rem; padding: .55rem .75rem; cursor: pointer; }
     .primary { background: #22c55e; color: #052e16; font-weight: 700; }
     .table-wrap { overflow: auto; max-height: 72vh; border: 1px solid #334155; border-radius: .5rem; }
-    table { border-collapse: collapse; width: 100%; min-width: 1800px; background: #111827; }
+    table { border-collapse: collapse; width: 100%; min-width: 1200px; background: #111827; }
     th, td { border-bottom: 1px solid #334155; padding: .5rem; text-align: left; vertical-align: top; }
     thead { position: sticky; top: 0; z-index: 2; background: #1e293b; }
     th button { width: 100%; background: transparent; color: inherit; border: 0; text-align: left; }
@@ -681,8 +690,7 @@ REVIEW_HTML = r"""<!doctype html>
     th:nth-child(3), td:nth-child(3) { min-width: 115px; }
     th:nth-child(4), td:nth-child(4) { min-width: 230px; }
     th:nth-child(5), td:nth-child(5) { min-width: 245px; overflow-wrap: anywhere; }
-    th:nth-child(6), td:nth-child(6) { min-width: 420px; }
-    th:nth-child(7), td:nth-child(7), th:nth-child(8), td:nth-child(8) { min-width: 105px; }
+    th:nth-child(6), td:nth-child(6) { min-width: 105px; }
     .summary { font-weight: 600; }
     @media (prefers-color-scheme: light) {
       body { background: #f8fafc; color: #0f172a; }
@@ -694,12 +702,9 @@ REVIEW_HTML = r"""<!doctype html>
 <body>
   __NAVIGATION__
   <h1>Revisão humana de merchants</h1>
-  <p>Revise somente os nomes únicos. As edições são rascunhos até você marcar os itens conferidos como aprovados. Salvar rascunho não altera os insights; aprovar os selecionados incorpora essas linhas à base e recalcula o plano. Itens desconhecidos podem ser aprovados explicitamente como desconhecidos.</p>
+  <p>Revise os nomes e categorias. Ao clicar em Aprovar revisão, todas as linhas serão incorporadas à base local persistente e os insights serão recalculados. Itens ainda desconhecidos serão preservados explicitamente como desconhecidos.</p>
   <div class="toolbar">
-    <button id="approve-visible">Aprovar visíveis</button>
-    <button id="clear-visible">Desmarcar visíveis</button>
-    <button id="download" class="primary">Baixar revisão CSV</button>
-    __SAVE_BUTTON__
+    __REVIEW_ACTION__
     <span id="summary" class="summary"></span>
     <span id="save-status" role="status"></span>
   </div>
@@ -713,9 +718,7 @@ REVIEW_HTML = r"""<!doctype html>
           <th><button data-sort="confidence_percent">Confiança (%) ↕</button></th>
           <th><button data-sort="categoria">Categoria ↕</button></th>
           <th><button data-sort="origem_classificacao">Origem ↕</button></th>
-          <th><button data-sort="contexto_classificacao">Contexto anterior ↕</button></th>
           <th><button data-sort="ocorrencias">Ocorrências ↕</button></th>
-          <th><button data-sort="aprovado">Aprovado ↕</button></th>
         </tr>
         <tr class="filters">
           <th><input data-filter="variantes_originais" placeholder="Filtrar originais"></th>
@@ -723,9 +726,7 @@ REVIEW_HTML = r"""<!doctype html>
           <th><input data-filter="confidence_percent" placeholder="Filtrar confiança"></th>
           <th><input data-filter="categoria" placeholder="Filtrar categoria"></th>
           <th><input data-filter="origem_classificacao" placeholder="Filtrar origem"></th>
-          <th><input data-filter="contexto_classificacao" placeholder="Filtrar contexto"></th>
           <th><input data-filter="ocorrencias" placeholder="Filtrar ocorrências"></th>
-          <th><input data-filter="aprovado" placeholder="sim/não"></th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -774,64 +775,47 @@ REVIEW_HTML = r"""<!doctype html>
         const category = document.createElement("input"); category.type = "text"; category.value = row.categoria; category.setAttribute("list", "categories");
         category.addEventListener("input", () => { row.categoria = category.value; persist(); updateSummary(); }); categoryCell.appendChild(category);
         const source = document.createElement("td"); source.textContent = sourceLabels[row.origem_classificacao] || row.origem_classificacao;
-        const context = document.createElement("td"); context.textContent = row.contexto_classificacao;
         const occurrences = document.createElement("td"); occurrences.textContent = row.ocorrencias;
-        const approvedCell = document.createElement("td"); const approved = document.createElement("input"); approved.type = "checkbox"; approved.checked = row.aprovado === "sim";
-        approved.addEventListener("change", () => { row.aprovado = approved.checked ? "sim" : "nao"; persist(); updateSummary(); }); approvedCell.appendChild(approved);
-        tr.append(original, friendlyCell, confidence, categoryCell, source, context, occurrences, approvedCell); body.appendChild(tr);
+        tr.append(original, friendlyCell, confidence, categoryCell, source, occurrences); body.appendChild(tr);
       });
       updateSummary();
     }
     function updateSummary() {
-      const approved = rows.filter(row => row.aprovado === "sim").length;
       const unknown = rows.filter(row => row.nome_amigavel === "Desconhecido" || row.categoria === "Desconhecida").length;
-      document.querySelector("#summary").textContent = `${rows.length} únicos · ${approved} aprovados · ${unknown} desconhecidos · ${visibleRows().length} visíveis`;
+      document.querySelector("#summary").textContent = `${rows.length} únicos · ${unknown} desconhecidos · ${visibleRows().length} visíveis`;
     }
     document.querySelectorAll("[data-filter]").forEach(input => input.addEventListener("input", () => { filters[input.dataset.filter] = input.value.toLocaleLowerCase("pt-BR"); render(); }));
     document.querySelectorAll("[data-sort]").forEach(button => button.addEventListener("click", () => { const key = button.dataset.sort; sortDirection = sortKey === key ? -sortDirection : 1; sortKey = key; render(); }));
-    document.querySelector("#approve-visible").addEventListener("click", () => { visibleRows().forEach(row => row.aprovado = "sim"); persist(); render(); });
-    document.querySelector("#clear-visible").addEventListener("click", () => { visibleRows().forEach(row => row.aprovado = "nao"); persist(); render(); });
     const csvEscape = value => `"${String(value ?? "").replaceAll('"', '""')}"`;
-    document.querySelector("#download").addEventListener("click", () => {
+    const downloadButton = document.querySelector("#download");
+    if (downloadButton) downloadButton.addEventListener("click", () => {
+      rows.forEach(row => row.aprovado = "sim");
       const fields = ["merchant_key", "nome_original", "variantes_originais", "nome_amigavel", "confidence_percent", "categoria", "origem_classificacao", "contexto_classificacao", "ocorrencias", "aprovado"];
       const csv = [fields.join(","), ...rows.sort((a,b) => a.nome_original.localeCompare(b.nome_original, "pt-BR")).map(row => fields.map(field => csvEscape(row[field])).join(","))].join("\n");
       const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob([csv], {type: "text/csv;charset=utf-8"})); link.download = "merchant_review_approved.csv"; link.click(); URL.revokeObjectURL(link.href);
     });
-    async function submitReview(mode) {
-      const saveButton = mode === "approve" ? document.querySelector("#approve-review") : document.querySelector("#save-draft");
+    async function approveReview() {
+      const saveButton = document.querySelector("#approve-review");
       const status = document.querySelector("#save-status");
-      const approvedCount = rows.filter(row => row.aprovado === "sim").length;
-      if (mode === "approve" && approvedCount === 0) {
-        status.textContent = "Marque ao menos um merchant conferido antes de atualizar os insights.";
-        return;
-      }
       saveButton.disabled = true;
-      status.textContent = mode === "approve"
-        ? "Aprovando e recalculando insights…"
-        : "Salvando rascunho…";
+      status.textContent = "Aprovando toda a revisão e recalculando insights…";
       try {
         const response = await fetch(saveEndpoint, {
           method: "POST",
           headers: {"Content-Type": "application/json", "X-Review-Token": reviewToken},
-          body: JSON.stringify({rows, mode})
+          body: JSON.stringify({rows, mode: "approve"})
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "Não foi possível salvar a revisão");
         status.textContent = result.message || "Revisão salva.";
-        if (mode === "approve") {
-          localStorage.removeItem(storageKey);
-          window.location.assign(result.next_url || "/insights");
-        } else {
-          saveButton.disabled = false;
-        }
+        localStorage.removeItem(storageKey);
+        window.location.assign(result.next_url || "/insights");
       } catch (error) {
         status.textContent = error.message; saveButton.disabled = false;
       }
     }
-    const draftButton = document.querySelector("#save-draft");
     const approveButton = document.querySelector("#approve-review");
-    if (draftButton) draftButton.addEventListener("click", () => submitReview("draft"));
-    if (approveButton) approveButton.addEventListener("click", () => submitReview("approve"));
+    if (approveButton) approveButton.addEventListener("click", approveReview);
     render();
   </script>
 </body>

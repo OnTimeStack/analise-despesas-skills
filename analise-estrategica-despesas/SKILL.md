@@ -13,7 +13,7 @@ Esta entrada é mantida para compatibilidade com instalações anteriores. O nú
 
 Ao ser chamada, verifique primeiro os anexos e a conversa e peça somente o que estiver faltando; não suponha que o usuário saiba o que enviar. Se não houver `consolidado.csv`, solicite as faturas/extratos e os totais de cada fatura e execute primeiro `consolidar-faturas`. Para cada fatura, obtenha um total esperado ou uma declaração explícita de que ele não está disponível. Não analise arquivos brutos diretamente.
 
-Com o consolidado, confira `consolidation_report.json` quando existir e mantenha divergências visíveis. Pergunte se o usuário possui `merchant_knowledge_base.csv`; se não possuir, avise que uma base vazia será criada e que o arquivo gerado deve ser guardado para reutilização. Pergunte também se há classificações históricas ou categorias customizadas, deixando claro que são opcionais. Só inicie a análise depois de ter um consolidado processável e uma resposta sobre a base anterior. Não repita informações já inferidas com segurança dos arquivos.
+Com o consolidado, confira `consolidation_report.json` quando existir e mantenha divergências visíveis. Carregue automaticamente a base local persistente da skill; use `--knowledge-base` apenas quando o usuário fornecer uma base diferente. Pergunte também se há classificações históricas ou categorias customizadas, deixando claro que são opcionais. Não repita informações já inferidas com segurança dos arquivos.
 
 ## Execução unificada com revisão humana obrigatória
 
@@ -21,8 +21,7 @@ Para arquivos brutos, use preferencialmente uma única ação:
 
 ```bash
 python scripts/process_expenses.py <entrada-ou-zip> <diretorio-saida> \
-  --expected-totals <totais.csv> [--knowledge-base merchant_knowledge_base.csv] \
-  [--categories categorias.csv] [--open]
+  --expected-totals <totais.csv> [--categories categorias.csv] [--open]
 ```
 
 Ela consolida, deduplica e concilia cada banco/período antes de gerar a análise e abrir a revisão. Total ausente, divergência ou arquivo pendente encerra o comando com código 2 antes da análise. `--no-serve` gera somente os artefatos.
@@ -33,10 +32,10 @@ Prefira a aplicação local integrada:
 
 ```bash
 python scripts/review_merchants.py serve <consolidado.csv> <diretorio-saida> \
-  --knowledge-base <merchant_knowledge_base.csv> [--categories categorias.csv] [--open]
+  [--knowledge-base <merchant_knowledge_base.csv>] [--categories categorias.csv] [--open]
 ```
 
-Ela oferece páginas separadas de `Insights` e `Classificação`. `Salvar rascunho` não altera o plano; `Aprovar selecionados e atualizar insights` incorpora somente as linhas marcadas, recalcula os insights localmente e abre o plano atualizado. Nunca aprove merchants em nome do usuário. IA externa não é necessária para os cálculos determinísticos e não deve ser chamada automaticamente.
+Ela oferece páginas separadas de `Insights` e `Classificação`. Não há seleção parcial: o único botão `Aprovar revisão` incorpora todas as linhas, recalcula os insights localmente e abre o plano atualizado. O clique do usuário aprova explicitamente o conjunto completo; nunca acione o botão em nome dele. A base fica em `~/.local/share/analise-despesas-skills/merchant_knowledge_base.csv` por padrão e é reutilizada nas próximas execuções. IA externa não é necessária para os cálculos determinísticos e não deve ser chamada automaticamente.
 
 Antes de pedir aprovação, pesquise na internet somente os merchants que permanecerem como `Desconhecido`/`Desconhecida`. Use apenas o descritor público e, quando já conhecida sem expor a fatura, a localização provável; nunca envie valores, datas, banco, cartão ou o conjunto de transações. Priorize páginas oficiais, diretórios de shopping, cadastros públicos e conselhos profissionais. Use categoria nativa e ocorrências somente como contexto local, não como prova de identidade.
 
@@ -46,10 +45,10 @@ Use o fluxo por arquivos somente quando o servidor local não estiver disponíve
 
 ```bash
 python scripts/review_merchants.py prepare <consolidado.csv> <diretorio-saida> \
-  --knowledge-base <merchant_knowledge_base.csv> [--categories categorias.csv]
+  [--knowledge-base <merchant_knowledge_base.csv>] [--categories categorias.csv]
 ```
 
-Entregue `merchant_review.html`, resuma quantas sugestões foram enriquecidas e quais continuaram desconhecidas, e pare até o usuário revisar os nomes únicos, editar nome amigável/categoria, aprovar e devolver o CSV baixado. Não aprove em nome do usuário. Depois importe e analise:
+Entregue `merchant_review.html`, resuma quantas sugestões foram enriquecidas e quais continuaram desconhecidas, e pare até o usuário revisar os nomes únicos, editar nome amigável/categoria, aprovar a revisão completa e devolver o CSV baixado. Não aprove em nome do usuário. Depois importe e analise:
 
 Para classificações anteriores em `descricao,categoria[,categoria_nativa]`, use primeiro:
 

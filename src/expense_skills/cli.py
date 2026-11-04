@@ -11,6 +11,7 @@ from .categorization import Categorizer
 from .consolidation import ConsolidationError, ExpectedTotals, InvoiceConsolidator
 from .merchants import (
     MerchantKnowledgeBase,
+    default_knowledge_base_path,
     prepare_legacy_merchant_review,
     prepare_merchant_review,
 )
@@ -34,7 +35,7 @@ def process_expenses_main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--knowledge-base",
         type=Path,
-        help="Base de merchants; padrão: <output>/merchant_knowledge_base.csv",
+        help="Base de merchants; padrão: armazenamento local persistente da skill",
     )
     parser.add_argument("--categories", type=Path, help="CSV opcional de regras customizadas")
     parser.add_argument("--port", type=int, default=8765, help="Porta local; padrão 8765")
@@ -45,7 +46,7 @@ def process_expenses_main(argv: list[str] | None = None) -> int:
         help="Gera todos os artefatos sem manter o servidor local (útil para automação)",
     )
     args = parser.parse_args(argv)
-    knowledge_base = args.knowledge_base or args.output / "merchant_knowledge_base.csv"
+    knowledge_base = args.knowledge_base or default_knowledge_base_path()
     try:
         expected = ExpectedTotals.from_csv(args.expected_totals) if args.expected_totals else None
         report = InvoiceConsolidator(
@@ -179,8 +180,8 @@ def merchant_review_main(argv: list[str] | None = None) -> int:
     prepare.add_argument(
         "--knowledge-base",
         type=Path,
-        required=True,
-        help="Base CSV reutilizável de merchants",
+        default=default_knowledge_base_path(),
+        help="Base CSV reutilizável; padrão: armazenamento local persistente da skill",
     )
     prepare.add_argument("--categories", type=Path, help="CSV opcional de regras customizadas")
 
@@ -205,8 +206,8 @@ def merchant_review_main(argv: list[str] | None = None) -> int:
     serve.add_argument(
         "--knowledge-base",
         type=Path,
-        required=True,
-        help="Base CSV reutilizável de merchants",
+        default=default_knowledge_base_path(),
+        help="Base CSV reutilizável; padrão: armazenamento local persistente da skill",
     )
     serve.add_argument("--categories", type=Path, help="CSV opcional de regras customizadas")
     serve.add_argument("--port", type=int, default=8765, help="Porta local; padrão 8765")
@@ -221,8 +222,8 @@ def merchant_review_main(argv: list[str] | None = None) -> int:
     approve.add_argument(
         "--knowledge-base",
         type=Path,
-        required=True,
-        help="Base CSV reutilizável de merchants",
+        default=default_knowledge_base_path(),
+        help="Base CSV reutilizável; padrão: armazenamento local persistente da skill",
     )
 
     args = parser.parse_args(argv)

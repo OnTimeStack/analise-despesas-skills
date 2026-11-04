@@ -43,7 +43,7 @@ class ExpenseReviewApplicationTests(unittest.TestCase):
                 {
                     "nome_amigavel": "Netflix Brasil",
                     "categoria": "Serviços Recorrentes",
-                    "aprovado": "sim",
+                    "aprovado": "nao",
                 }
             )
 
@@ -55,8 +55,13 @@ class ExpenseReviewApplicationTests(unittest.TestCase):
             self.assertIn("Netflix Brasil", knowledge.read_text(encoding="utf-8"))
             self.assertIn("Netflix Brasil", application.insights_html)
             self.assertIn('href="/classification"', application.insights_html)
-            self.assertIn("Salvar rascunho", application.review_html)
-            self.assertIn("Aprovar selecionados e atualizar insights", application.review_html)
+            self.assertIn("Aprovar revisão", application.review_html)
+            self.assertIn("Baixar revisão CSV", application.review_html)
+            self.assertNotIn("Salvar rascunho", application.review_html)
+            self.assertNotIn("Aprovar visíveis", application.review_html)
+            self.assertNotIn("Desmarcar visíveis", application.review_html)
+            self.assertNotIn('type="checkbox"', application.review_html)
+            self.assertNotIn("Contexto anterior", application.review_html)
             self.assertIn("Plano estratégico de redução", application.insights_html)
             self.assertIn("Potencial de economia", application.insights_html)
             self.assertIn("Previsão de encerramento", application.insights_html)
@@ -105,8 +110,10 @@ class ExpenseReviewApplicationTests(unittest.TestCase):
             self.assertEqual(application.decisions[0].friendly_name, "Rascunho Loja")
             self.assertTrue((root / "output" / "merchant_review_draft.csv").is_file())
 
-            with self.assertRaisesRegex(ValueError, "nenhum merchant foi aprovado"):
-                application.save_review(rows, mode="approve")
+            approval = application.save_review(rows, mode="approve")
+            self.assertEqual(approval["approved_imported"], 1)
+            self.assertEqual(approval["pending_review"], 0)
+            self.assertIn("Rascunho Loja", knowledge.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

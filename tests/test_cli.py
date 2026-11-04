@@ -4,6 +4,7 @@ import csv
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from expense_skills.cli import merchant_review_main, process_expenses_main
 from expense_skills.models import OUTPUT_FIELDS
@@ -96,22 +97,26 @@ class MerchantReviewCliTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            result = process_expenses_main(
-                [
-                    str(source),
-                    str(output),
-                    "--expected-totals",
-                    str(expected),
-                    "--no-serve",
-                ]
-            )
+            state = root / "state"
+            with patch.dict("os.environ", {"ANALISE_DESPESAS_STATE_DIR": str(state)}):
+                result = process_expenses_main(
+                    [
+                        str(source),
+                        str(output),
+                        "--expected-totals",
+                        str(expected),
+                        "--no-serve",
+                    ]
+                )
 
             self.assertEqual(result, 0)
             self.assertTrue((output / "consolidado.csv").is_file())
             self.assertTrue((output / "merchant_review.html").is_file())
             self.assertTrue((output / "analise_estrategica_despesas.html").is_file())
             self.assertTrue((output / "analysis_results.json").is_file())
-            self.assertTrue((output / "merchant_knowledge_base.csv").is_file())
+            self.assertTrue(
+                (state / "analise-despesas-skills" / "merchant_knowledge_base.csv").is_file()
+            )
 
     def test_unified_flow_stops_before_analysis_when_totals_are_unverified(self):
         with tempfile.TemporaryDirectory() as temp:

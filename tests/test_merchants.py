@@ -89,6 +89,8 @@ class MerchantEnrichmentTests(unittest.TestCase):
             self.assertIn('data-sort="variantes_originais"', page)
             self.assertIn('data-filter="categoria"', page)
             self.assertIn("Baixar revisão CSV", page)
+            self.assertNotIn("Contexto anterior", page)
+            self.assertNotIn('type="checkbox"', page)
             self.assertNotIn("https://", page)
             self.assertNotIn("http://", page)
 

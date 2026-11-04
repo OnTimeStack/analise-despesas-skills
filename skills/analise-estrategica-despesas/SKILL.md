@@ -15,7 +15,7 @@ Ao ser chamada, identifique os itens já presentes e conduza o usuário pelo que
 
 - Se ainda não houver `consolidado.csv`, peça as faturas/extratos e os totais de cada fatura. O comando unificado abaixo executa a consolidação e a reconciliação antes da análise.
 - Se houver um consolidado, confira também `consolidation_report.json` quando disponível. Uma divergência ou uma fatura sem total esperado deve permanecer visível como limitação da análise.
-- Pergunte se existe `merchant_knowledge_base.csv` de uma execução anterior. Se não existir, informe que uma base vazia será criada; se o ambiente não for persistente, explique que o arquivo gerado deve ser guardado para a próxima execução.
+- Carregue automaticamente a base local persistente da skill. Use `--knowledge-base` somente para importar ou selecionar uma base diferente de forma explícita.
 - Pergunte se há classificações históricas ou categorias customizadas. Elas são opcionais e sua ausência não bloqueia o fluxo.
 - Pergunte por objetivos ou restrições específicos somente se forem relevantes; na ausência deles, faça a análise completa padrão.
 
@@ -27,8 +27,7 @@ Não repita perguntas já respondidas pelos arquivos ou pela conversa. Antes de 
 
    ```bash
    python scripts/process_expenses.py <entrada-ou-zip> <diretorio-saida> \
-     --expected-totals <totais.csv> [--knowledge-base merchant_knowledge_base.csv] \
-     [--categories categorias.csv] [--open]
+     --expected-totals <totais.csv> [--categories categorias.csv] [--open]
    ```
 
    O CSV de totais usa `banco,periodo_referencia,total_esperado`. O comando consolida, deduplica, concilia, gera os artefatos analíticos e abre a aplicação local. Se houver divergência, total ausente ou arquivo pendente, deve sair com código 2 e não iniciar a análise. Use `--no-serve` somente em automação ou quando desejar apenas os arquivos.
@@ -37,16 +36,18 @@ Não repita perguntas já respondidas pelos arquivos ou pela conversa. Antes de 
 
    ```bash
    python scripts/review_merchants.py serve <consolidado.csv> <diretorio-saida> \
-     --knowledge-base <merchant_knowledge_base.csv> [--categories categorias.csv] [--open]
+     [--knowledge-base <merchant_knowledge_base.csv>] [--categories categorias.csv] [--open]
    ```
 
-   A aplicação deve permanecer em `127.0.0.1`. O menu `Insights` apresenta os resultados; `Classificação` contém somente a revisão dos merchants. `Salvar rascunho` preserva edições sem alterar os insights. `Aprovar selecionados e atualizar insights` incorpora somente linhas marcadas como aprovadas, recalcula a análise determinística e redireciona para o plano atualizado. Nunca aprove em nome do usuário.
+   A aplicação deve permanecer em `127.0.0.1`. O menu `Insights` apresenta os resultados; `Classificação` contém somente a revisão dos merchants. A tela não usa checkboxes nem seleção parcial. Um único botão `Aprovar revisão` incorpora todas as linhas exibidas, recalcula a análise determinística e redireciona para o plano atualizado. O clique do usuário é a aprovação explícita do conjunto completo; nunca acione o botão em nome dele.
+
+   Por padrão, a revisão é gravada em `~/.local/share/analise-despesas-skills/merchant_knowledge_base.csv`, com acesso restrito ao usuário, e deve ser reutilizada automaticamente em execuções futuras. `ANALISE_DESPESAS_STATE_DIR` pode substituir a raiz local quando o ambiente exigir outro local persistente.
 
 3. Use o fluxo por arquivos abaixo apenas quando não for possível manter o servidor local. Prepare a revisão dos merchants únicos consultando primeiro a base aprovada:
 
    ```bash
    python scripts/review_merchants.py prepare <consolidado.csv> <diretorio-saida> \
-     --knowledge-base <merchant_knowledge_base.csv> [--categories categorias.csv]
+     [--knowledge-base <merchant_knowledge_base.csv>] [--categories categorias.csv]
    ```
 
    Se o usuário fornecer classificações anteriores no formato `descricao,categoria[,categoria_nativa]`, adapte-as antes da revisão:
@@ -69,12 +70,12 @@ Não repita perguntas já respondidas pelos arquivos ou pela conversa. Antes de 
 
    A pesquisa pública enriquece o rascunho, mas não altera a exigência de aprovação humana. Serviços pagos, medidos ou que exijam transmitir dados financeiros não fazem parte desta etapa implícita.
 
-5. Entregue `merchant_review.html` ao usuário e pare quando estiver usando o fluxo por arquivos. A aprovação precisa ser humana: não marque itens nem presuma concordância. A página lista somente nomes únicos, em ordem alfabética, e permite ordenar e filtrar todas as colunas, editar nome amigável/categoria e baixar o CSV revisado. Informe quantas sugestões a pesquisa resolveu, quais permaneceram desconhecidas e as principais fontes utilizadas.
-6. Depois que o usuário devolver o CSV baixado, importe somente as linhas explicitamente aprovadas:
+5. Entregue `merchant_review.html` ao usuário e pare quando estiver usando o fluxo por arquivos. A aprovação precisa ser humana: não presuma concordância. A página lista somente nomes únicos, em ordem alfabética, e permite ordenar e filtrar as colunas, editar nome amigável/categoria e baixar a revisão completa como aprovada. Informe quantas sugestões a pesquisa resolveu, quais permaneceram desconhecidas e as principais fontes utilizadas.
+6. Depois que o usuário devolver o CSV baixado, importe a revisão completa:
 
    ```bash
    python scripts/review_merchants.py approve <merchant_review_approved.csv> \
-     --knowledge-base <merchant_knowledge_base.csv>
+     [--knowledge-base <merchant_knowledge_base.csv>]
    ```
 
 7. Execute a análise exigindo que todos os merchants estejam aprovados:
@@ -93,9 +94,9 @@ Não repita perguntas já respondidas pelos arquivos ou pela conversa. Antes de 
 
 - A base aprovada tem precedência e evita reclassificar merchants já conhecidos.
 - Sem evidência razoável para o nome amigável, use `Desconhecido`, categoria `Desconhecida` e confidence 0%; deixe o humano preencher.
-- Uma sugestão determinística não é aprovação. Somente uma linha aprovada e importada recebe confidence 100% e entra na base.
+- Uma sugestão determinística não é aprovação. O clique humano em `Aprovar revisão` aprova o conjunto completo, atribui confidence 100% e grava todas as linhas na base.
 - Uma classificação legada pode preencher a sugestão e seu contexto, mas continua pendente até a revisão no formato atual.
-- Preserve `merchant_knowledge_base.csv` entre execuções. Em ambientes sem armazenamento persistente, peça ao usuário para guardar e anexar novamente esse arquivo.
+- Reutilize automaticamente a base local persistente entre execuções. Em ambientes efêmeros, exporte-a para um local persistente antes do encerramento.
 - Recalcule localmente sempre que as regras determinísticas forem suficientes. Só use IA para uma nova narrativa ou interpretação que não possa ser derivada de `analysis_results.json`; chamadas externas pagas exigem autorização de custo própria e nunca são disparadas implicitamente pelo navegador.
 
 ## Regras de interpretação
