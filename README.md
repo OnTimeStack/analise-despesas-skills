@@ -49,6 +49,37 @@ tests/                              testes locais sem dependências externas
 
 O núcleo usa apenas a biblioteca padrão do Python. CSV e OFX são processados deterministicamente. PDF e imagem exigem leitura assistida pelo agente e conversão para o esquema padronizado.
 
+## Instalação e pontos de entrada
+
+O repositório oferece três formas equivalentes de uso:
+
+| Ambiente | Entrada | Implementação compartilhada |
+|---|---|---|
+| ChatGPT/Codex e Agent Skills | `plugin.json` e `skills/` | `src/expense_skills/` |
+| Claude e instalações anteriores | `consolidar-faturas/` e `analise-estrategica-despesas/` | `src/expense_skills/` |
+| Terminal/Python | comandos definidos em `pyproject.toml` | `src/expense_skills/` |
+
+Para desenvolvimento local:
+
+```bash
+uv sync
+```
+
+Depois disso, use os scripts das skills mostrados abaixo ou os comandos instalados `consolidar-faturas`, `revisar-merchants` e `analisar-despesas`. Os wrappers não possuem regras próprias: todos chamam o mesmo núcleo, evitando divergência entre agentes.
+
+### Comportamento esperado no chat
+
+O usuário pode simplesmente pedir uma análise de despesas. A skill deve então:
+
+1. inventariar anexos e informações já fornecidas;
+2. explicar, em linguagem simples, o que ainda precisa ser enviado;
+3. pedir o total de cada fatura ou uma declaração explícita de que ele não está disponível;
+4. perguntar se existe uma base de merchants anterior;
+5. consolidar e reconciliar antes de iniciar a análise;
+6. abrir a revisão humana dos merchants e, após a aprovação, atualizar os insights localmente.
+
+O agente não deve responder apenas com nomes técnicos de arquivos. Quando o usuário não tiver uma base anterior ou categorias próprias, ele deve explicar que esses itens são opcionais e seguir com uma base vazia e as categorias padrão.
+
 ## Triagem guiada ao iniciar
 
 Quando uma das skills é chamada, ela primeiro inventaria o que já foi anexado e solicita somente as informações ausentes. O usuário recebe um checklist simples, sem precisar conhecer previamente o pipeline:
@@ -180,6 +211,14 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src python -m unittest discover -s tests -v
 ```
 
 Os testes não fazem chamadas de rede nem usam serviços pagos.
+
+## Harnesses para agentes
+
+- `AGENTS.md` é o contrato canônico para Codex e agentes compatíveis: arquitetura, invariantes financeiros, privacidade, custos e matriz de validação.
+- `CLAUDE.md` adiciona as particularidades de execução do Claude e referencia o contrato canônico.
+- As instruções funcionais consumidas em runtime permanecem nos arquivos `SKILL.md`; os harnesses orientam quem modifica o repositório.
+
+Ao alterar o fluxo, mantenha sincronizadas as skills canônicas em `skills/` e as entradas legadas. Ao alterar regras de negócio, modifique `src/expense_skills/` e adicione ou ajuste testes em `tests/`.
 
 ## Privacidade e segurança
 
